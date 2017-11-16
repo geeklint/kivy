@@ -6,24 +6,31 @@ Color Picker
 
 .. warning::
 
-    This widget is experimental. Its use and API can change any time, until
+    This widget is experimental. Its use and API can change at any time until
     this warning is removed.
 
+.. image:: images/colorpicker.png
+    :align: right
 
-The ColorPicker widget allows a user to pick a color utilizing from a chromatic
-wheel where pinch/zoom can be used to change available colors or using a slider
-or directly entering the colors in the text boxes.
+The ColorPicker widget allows a user to select a color from a chromatic
+wheel where pinch and zoom can be used to change the wheel's saturation.
+Sliders and TextInputs are also provided for entering the RGBA/HSV/HEX values
+directly.
 
 Usage::
 
     clr_picker = ColorPicker()
-    parent.add_widget(ColorPicker)
-    # print currently selected color in rgba format
-    print(clr_picker.color)
-    # print currently selected color in hsv format
-    print(clr_picker.hsv)
-    # print currently selected color in hex format
-    print(clr_picker.hex_color)
+    parent.add_widget(clr_picker)
+
+    # To monitor changes, we can bind to color property changes
+    def on_color(instance, value):
+        print "RGBA = ", str(value)  #  or instance.color
+        print "HSV = ", str(instance.hsv)
+        print "HEX = ", str(instance.hex_color)
+
+    clr_picker.bind(color=on_color)
+
+
 '''
 
 __all__ = ('ColorPicker', 'ColorWheel')
@@ -31,8 +38,9 @@ __all__ = ('ColorPicker', 'ColorWheel')
 from kivy.uix.relativelayout import RelativeLayout
 from kivy.uix.widget import Widget
 from kivy.properties import (NumericProperty, BoundedNumericProperty,
-                            ListProperty, ObjectProperty, ReferenceListProperty,
-                            StringProperty, AliasProperty)
+                             ListProperty, ObjectProperty,
+                             ReferenceListProperty, StringProperty,
+                             AliasProperty)
 from kivy.clock import Clock
 from kivy.graphics import Mesh, InstructionGroup, Color
 from kivy.utils import get_color_from_hex, get_hex_from_color
@@ -68,49 +76,48 @@ def rect_to_polar(origin, x, y):
 
 
 class ColorWheel(Widget):
-    '''Chromatic wheel for the ColorPiker.
+    '''Chromatic wheel for the ColorPicker.
 
     .. versionchanged:: 1.7.1
-
-        `font_size`, `font_name`, `foreground_color` have been removed. The
+        `font_size`, `font_name` and `foreground_color` have been removed. The
         sizing is now the same as others widget, based on 'sp'. Orientation is
-        also automatically determined according to the ratio width/height.
+        also automatically determined according to the width/height ratio.
 
     '''
 
     r = BoundedNumericProperty(0, min=0, max=1)
     '''The Red value of the color currently selected.
 
-    :data:`r` is an :class:`~kivy.properties.BoundedNumericProperty`
-    can be a value from 0 to 1 default to 0.
+    :attr:`r` is a :class:`~kivy.properties.BoundedNumericProperty` and
+    can be a value from 0 to 1. It defaults to 0.
     '''
 
     g = BoundedNumericProperty(0, min=0, max=1)
     '''The Green value of the color currently selected.
 
-    :data:`g` is an :class:`~kivy.properties.BoundedNumericProperty`
-    can be a value from 0 to 1
+    :attr:`g` is a :class:`~kivy.properties.BoundedNumericProperty`
+    and can be a value from 0 to 1.
     '''
 
     b = BoundedNumericProperty(0, min=0, max=1)
     '''The Blue value of the color currently selected.
 
-    :data:`b` is an :class:`~kivy.properties.BoundedNumericProperty`
+    :attr:`b` is a :class:`~kivy.properties.BoundedNumericProperty` and
     can be a value from 0 to 1.
     '''
 
     a = BoundedNumericProperty(0, min=0, max=1)
     '''The Alpha value of the color currently selected.
 
-    :data:`r` is an :class:`~kivy.properties.BoundedNumericProperty`
+    :attr:`a` is a :class:`~kivy.properties.BoundedNumericProperty` and
     can be a value from 0 to 1.
     '''
 
     color = ReferenceListProperty(r, g, b, a)
     '''The holds the color currently selected.
 
-    :data:`color` is an :class:`~kivy.properties.ReferenceListProperty`
-    a list of `r`, `g`, `b`, `a`.
+    :attr:`color` is a :class:`~kivy.properties.ReferenceListProperty` and
+    contains a list of `r`, `g`, `b`, `a` values.
     '''
 
     _origin = ListProperty((100, 100))
@@ -131,10 +138,8 @@ class ColorWheel(Widget):
         super(ColorWheel, self).__init__(**kwargs)
 
         pdv = self._piece_divisions
-        self.sv_s = [(float(x) / pdv, 1)
-                     for x in range(pdv)] + [
-                         (1, float(y) / pdv)
-                         for y in reversed(range(pdv))]
+        self.sv_s = [(float(x) / pdv, 1) for x in range(pdv)] + [
+            (1, float(y) / pdv) for y in reversed(range(pdv))]
 
     def on__origin(self, instance, value):
         self.init_wheel(None)
@@ -223,9 +228,9 @@ class ColorWheel(Widget):
         if touch.grab_current is not self:
             return
         r = self._get_touch_r(touch.pos)
-        goal_sv_idx = (touch.ud['orig_sv_idx']
-                       - int((r - touch.ud['anchor_r'])
-                             / (float(self._radius) / self._piece_divisions)))
+        goal_sv_idx = (touch.ud['orig_sv_idx'] -
+                       int((r - touch.ud['anchor_r']) /
+                            (float(self._radius) / self._piece_divisions)))
 
         if (
             goal_sv_idx != self.sv_idx and
@@ -249,14 +254,14 @@ class ColorWheel(Widget):
                 if self.sv_idx > touch.ud['orig_sv_idx']:
                     Clock.schedule_once(
                         self.inertial_incr_sv_idx,
-                        (Clock.get_time() - touch.ud['orig_time'])
-                        / (self.sv_idx - touch.ud['orig_sv_idx']))
+                        (Clock.get_time() - touch.ud['orig_time']) /
+                        (self.sv_idx - touch.ud['orig_sv_idx']))
 
                 if self.sv_idx < touch.ud['orig_sv_idx']:
                     Clock.schedule_once(
                         self.inertial_decr_sv_idx,
-                        (Clock.get_time() - touch.ud['orig_time'])
-                        / (self.sv_idx - touch.ud['orig_sv_idx']))
+                        (Clock.get_time() - touch.ud['orig_time']) /
+                        (self.sv_idx - touch.ud['orig_sv_idx']))
 
                 self._pinch_flag = False
                 return
@@ -291,7 +296,7 @@ class ColorWheel(Widget):
 
 class _ColorArc(InstructionGroup):
     def __init__(self, r_min, r_max, theta_min, theta_max,
-                 color=(0, 0, 1, 1), origin = (0, 0), **kwargs):
+                 color=(0, 0, 1, 1), origin=(0, 0), **kwargs):
         super(_ColorArc, self).__init__(**kwargs)
         self.origin = origin
         self.r_min = r_min
@@ -364,25 +369,25 @@ class ColorPicker(RelativeLayout):
     See module documentation.
     '''
 
-    font_name = StringProperty('data/fonts/DroidSansMono.ttf')
-    '''Specifies the font used used on the Color Picker
+    font_name = StringProperty('data/fonts/RobotoMono-Regular.ttf')
+    '''Specifies the font used on the ColorPicker.
 
-    :data:`font_name` is an :class:`~kivy.properties.StringProperty`
-    defaults to 'data/fonts/DroidSansMono.ttf'
+    :attr:`font_name` is a :class:`~kivy.properties.StringProperty` and
+    defaults to 'data/fonts/RobotoMono-Regular.ttf'.
     '''
 
     color = ListProperty((1, 1, 1, 1))
-    '''The :data:`color` holds the color currently selected in rgba format.
+    '''The :attr:`color` holds the color currently selected in rgba format.
 
-    :data:`color` is an :class:`~kivy.properties.ListProperty` defaults to
-    (1, 1, 1, 1)
+    :attr:`color` is a :class:`~kivy.properties.ListProperty` and defaults to
+    (1, 1, 1, 1).
     '''
 
     hsv = ListProperty((1, 1, 1))
-    '''The :data:`hsv` holds the color currently selected in hsv format.
+    '''The :attr:`hsv` holds the color currently selected in hsv format.
 
-    :data:`hsv` is an :class:`~kivy.properties.ListProperty` defaults to
-    (1, 1, 1)
+    :attr:`hsv` is a :class:`~kivy.properties.ListProperty` and defaults to
+    (1, 1, 1).
     '''
     def _get_hex(self):
         return get_hex_from_color(self.color)
@@ -391,18 +396,20 @@ class ColorPicker(RelativeLayout):
         self.color = get_color_from_hex(value)[:4]
 
     hex_color = AliasProperty(_get_hex, _set_hex, bind=('color', ))
-    '''The :data:`hex_color` holds the currently selected color in hex.
+    '''The :attr:`hex_color` holds the currently selected color in hex.
 
-    :data:`hex_color` is a :class:`~kivy.properties.AliasProperty` default to
-    `#ffffffff`
+    :attr:`hex_color` is an :class:`~kivy.properties.AliasProperty` and
+    defaults to `#ffffffff`.
     '''
 
     wheel = ObjectProperty(None)
-    '''The :data:`wheel` holds the color wheel.
+    '''The :attr:`wheel` holds the color wheel.
 
-    :data:`wheel` is an :class:`~kivy.properties.ObjectProperty` defaults to
-    None
+    :attr:`wheel` is an :class:`~kivy.properties.ObjectProperty` and
+    defaults to None.
     '''
+
+    _update_clr_ev = _update_hex_ev = None
 
     # now used only internally.
     foreground_color = ListProperty((1, 1, 1, 1))
@@ -421,19 +428,21 @@ class ColorPicker(RelativeLayout):
 
     def _trigger_update_clr(self, mode, clr_idx, text):
         self._upd_clr_list = mode, clr_idx, text
-        Clock.unschedule(self._update_clr)
-        Clock.schedule_once(self._update_clr)
+        ev = self._update_clr_ev
+        if ev is None:
+            ev = self._update_clr_ev = Clock.create_trigger(self._update_clr)
+        ev()
 
     def _update_clr(self, dt):
         mode, clr_idx, text = self._upd_clr_list
         try:
-            text = max(0, min(254, float(text)))
+            text = min(255, max(0, float(text)))
             if mode == 'rgb':
                 self.color[clr_idx] = float(text) / 255.
             else:
                 self.hsv[clr_idx] = float(text) / 255.
         except ValueError:
-            Logger.warning('Color Picker: invalid value : {}'.format(text))
+            Logger.warning('ColorPicker: invalid value : {}'.format(text))
 
     def _update_hex(self, dt):
         if len(self._upd_hex_list) != 9:
@@ -442,8 +451,10 @@ class ColorPicker(RelativeLayout):
 
     def _trigger_update_hex(self, text):
         self._upd_hex_list = text
-        Clock.unschedule(self._update_hex)
-        Clock.schedule_once(self._update_hex)
+        ev = self._update_hex_ev
+        if ev is None:
+            ev = self._update_hex_ev = Clock.create_trigger(self._update_hex)
+        ev()
 
     def __init__(self, **kwargs):
         self._updating_clr = False

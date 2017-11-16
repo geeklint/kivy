@@ -7,7 +7,7 @@ Our input system is wide and simple at the same time. We are currently able to
 natively support :
 
 * Windows multitouch events (pencil and finger)
-* MacOSX touchpads
+* OS X touchpads
 * Linux multitouch events (kernel and mtdev)
 * Linux wacom drivers (pencil and finger)
 * TUIO
@@ -37,4 +37,3 @@ __all__ = (
     MotionEventProvider.__name__,
     MotionEventFactory.__name__,
     'kivy_postproc_modules')
-

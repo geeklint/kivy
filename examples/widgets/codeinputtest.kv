@@ -1,8 +1,6 @@
-#:import fonts pygame.font
 #:import os os
 <Fnt_SpinnerOption>:
-    fnt_name: fonts.match_font(self.text)
-    font_name: self.fnt_name if self.fnt_name else self.font_name
+    font_name: self.text
 
 <LoadDialog>:
     title: filechooser.path

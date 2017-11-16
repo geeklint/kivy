@@ -34,13 +34,13 @@
 ;;
 ;; to your .emacs file.
 ;;
-;; Unlike python-mode, this mode follows the Emacs convention of not
-;; binding the ENTER key to `newline-and-indent'. To get this behavior, add
-;; the key definition to `kivy-mode-hook':
+;; This mode does not enable electric-indent by default. To get this
+;; behavior, either enable electric-indent-mode globally or enable it only
+;; for kivy buffers using `kivy-mode-hook':
 ;;
 ;;    (add-hook 'kivy-mode-hook
 ;;     '(lambda ()
-;;        (define-key kivy-mode-map "\C-m" 'newline-and-indent)))
+;;        (electric-indent-local-mode t)))
 
 
 ;; User definable variables
@@ -90,7 +90,7 @@
   "Regexp matching a line containing a kivy comment or delimiter.")
 
 (defconst kivy-directive-re "^\\(?:#:\\)\\(\\w+ +.*\\)"
-  "Regexp matching a line contatining a kivy directive.")
+  "Regexp matching a line containing a kivy directive.")
 
 (defconst kivy-tag-re "^ *id: *\\([^ \n]+\\)$"
   "Rexexp matching a kivy tag.")
@@ -235,6 +235,9 @@ immediately previous multiple of `kivy-indent-offset' spaces."
   (setq imenu-generic-expression kivy-imenu-generic-expression))
 
 (add-hook 'kivy-mode-hook 'kivy-set-imenu-generic-expression)
+(add-hook 'kivy-mode-hook
+          '(lambda ()
+             (setq indent-tabs-mode 'nil)))
 
 
 (defun kivy-mode-version ()

@@ -16,11 +16,13 @@ Widgets
 .. |x| replace:: :attr:`~kivy.uix.widget.Widget.x`
 .. |y| replace:: :attr:`~kivy.uix.widget.Widget.y`
 .. |left| replace:: :attr:`~kivy.uix.widget.Widget.left`
+.. |right| replace:: :attr:`~kivy.uix.widget.Widget.right`
 .. |top| replace:: :attr:`~kivy.uix.widget.Widget.top`
 .. |center_x| replace:: :attr:`~kivy.uix.widget.Widget.center_x`
 .. |center_y| replace:: :attr:`~kivy.uix.widget.Widget.center_y`
 .. |orientation| replace:: :attr:`~kivy.uix.boxlayout.BoxLayout.orientation`
 .. |Widget| replace:: :class:`~kivy.uix.widget.Widget`
+.. |Spinner| replace:: :class:`~kivy.uix.spinner.Spinner`
 .. |Button| replace:: :class:`~kivy.uix.button.Button`
 .. |Image| replace:: :class:`~kivy.uix.image.Image`
 .. |Canvas| replace:: :class:`~kivy.graphics.Canvas`
@@ -93,7 +95,7 @@ If you want to clear all the children inside a widget, use
 Traversing the Tree
 -------------------
 
-The Widget class instance's :data:`~kivy.uix.widget.Widget.children` list property
+The Widget class instance's :attr:`~kivy.uix.widget.Widget.children` list property
 contains all the children. You can easily traverse the tree by doing::
 
     root = BoxLayout()
@@ -101,7 +103,7 @@ contains all the children. You can easily traverse the tree by doing::
     for child in root.children:
         print(child)
 
-However, this must be used carefuly. If you intend to modify the children list
+However, this must be used carefully. If you intend to modify the children list
 with one of the methods shown in the previous section, you must use a copy of
 the list like this::
 
@@ -118,13 +120,16 @@ use the |RelativeLayout|. More on that later) and |size|, is an absolute size.
 Widgets Z Index
 ---------------
 
-The order of drawing widgets is based on position in
-the widget tree. The last widget's canvas is drawn last (on top of everything
-else inside its parent). add_widget takes a `index` parameter::
+The order of widget drawing is based on the widget's position in
+the widget tree. The :attr:`~kivy.uix.widget.Widget.add_widget`
+method takes an `index` parameter which can be used to specify it's position in
+the widget tree::
 
     root.add_widget(widget, index)
 
-for setting the z-index.
+The lower indexed widgets will be drawn above those with a higher index. Keep
+in mind that the default for `index` is 0, so widgets added later
+are drawn on top of the others unless specified otherwise.
 
 Organize with Layouts
 ---------------------
@@ -142,13 +147,9 @@ proportions allowed to each child, or set fixed size for some of them.
 .. only:: html
 
     .. image:: ../images/boxlayout.gif
-        :align: left
     .. image:: ../images/gridlayout.gif
-        :align: right
     .. image:: ../images/stacklayout.gif
-        :align: left
     .. image:: ../images/anchorlayout.gif
-        :align: right
     .. image:: ../images/floatlayout.gif
 
 .. only:: latex
@@ -186,7 +187,7 @@ setting position relative to layout position.
 Behaves just like FloatLayout, except children positions are relative to layout
 position, not the screen.
 
-Examine the documentation of the individaul layouts for a more in-depth
+Examine the documentation of the individual layouts for a more in-depth
 understanding.
 
 |size_hint| and |pos_hint|:
@@ -199,7 +200,7 @@ understanding.
 - |AnchorLayout|
 
 |size_hint| is a |ReferenceListProperty| of
-|size_hint_x| and |size_hint_y|. It excepts values from `0` to `1` or `None`
+|size_hint_x| and |size_hint_y|. It accepts values from `0` to `1` or `None`
 and defaults to `(1, 1)`. This signifies that if the widget is in a layout,
 the layout will allocate it as much place as possible in both directions
 (relative to the layouts size).
@@ -218,14 +219,15 @@ Consider the following example:
             # however it's provided here to make things clear
             size_hint: 1, 1
 
-load kivy catalog::
+Now load kivy catalog by typing the following, but replacing $KIVYDIR
+with the directory of your installation (discoverable via
+:py:mod:`os.path.dirname(kivy.__file__)`)::
 
     cd $KIVYDIR/examples/demo/kivycatalog
     python main.py
 
-Replace $KIVYDIR with the directory of your installation of Kivy. Click on the
-button labeled `Box Layout` from the left. Now paste the code from above into
-the editor panel on the right.
+A new window will appear. Click in the area below the 'Welcome' |Spinner| on the
+left and replace the text there with your kv code from above.
 
 .. image:: images/size_hint[B].jpg
 
@@ -238,7 +240,7 @@ of the |layout| |width|/|height|.
 .. image:: images/size_hint[b_].jpg
 
 You can see here that, although we specify |size_hint_x| and |size_hint_y| both
-to be .5, only |size_hint_x| seems to be honored. That is because |BoxLayout|
+to be .5, only |size_hint_y| seems to be honored. That is because |BoxLayout|
 controls the |size_hint_y| when |orientation| is `vertical` and |size_hint_x|
 when |orientation| is 'horizontal'. The controlled dimension's size is calculated depending
 upon the total no. of |children| in the |BoxLayout|. In this example, one child has
@@ -260,7 +262,7 @@ will take out of the |size| given to it by the |BoxLayout|. In our example, the
 first |Button| specifies .5 for |size_hint_x|. The space for the widget is
 calculated like so::
 
-    first child's size_hint devided by
+    first child's size_hint divided by
     first child's size_hint + second child's size_hint + ...n(no of children)
     
     .5/(.5+1) = .333...
@@ -277,7 +279,7 @@ If you want to control the absolute |size| of a |Widget|, you can set
 
 |pos_hint| is a dict, which defaults to empty. As for |size_hint|, layouts honor
 |pos_hint| differently, but generally you can add values to any of the |pos|
-attributes (|x|, |y|, |left|, |top|, |center_x|, |center_y|) to have the
+attributes (|x|, |y|, |right|, |top|, |center_x|, |center_y|) to have the
 |Widget| positioned relative to its |parent|.
 
 Let's experiment with the following code in kivycatalog to understand |pos_hint|
@@ -322,33 +324,34 @@ instance easily, as with adding a colored background:
 
 In Python::
 
+    from kivy.graphics import Color, Rectangle
+
     with layout_instance.canvas.before:
-        Color(rgba(0, 1, 0, 1)) # green; colors range from 0-1 instead of 0-255
-        self.rect = Rectangle(
-                                size=layout_instance.size,
-                                pos=layout_instance.pos)
+        Color(0, 1, 0, 1) # green; colors range from 0-1 instead of 0-255
+        self.rect = Rectangle(size=layout_instance.size,
+                               pos=layout_instance.pos)
 
 Unfortunately, this will only draw a rectangle at the layout's initial position
-and size. To make sure the rect is drawn inside the layout, when layout size/pos
-changes, we need to listen to any changes and update the rectangle size and pos
-like so::
+and size. To make sure the rect is drawn inside the layout, when the layout
+size/pos changes, we need to listen to any changes and update the rectangles
+size and pos. We can do that as follows::
+
+    with layout_instance.canvas.before:
+        Color(0, 1, 0, 1) # green; colors range from 0-1 instead of 0-255
+        self.rect = Rectangle(size=layout_instance.size,
+                               pos=layout_instance.pos)
+
+    def update_rect(instance, value):
+        instance.rect.pos = instance.pos
+        instance.rect.size = instance.size
 
     # listen to size and position changes
-    layout_instance.bind(
-                        size=self._update_rect,
-                        pos=self._update_rect)
-    
-    ...
-    def _update_rect(self, instance, value):
-        self.rect.pos = instance.pos
-        self.rect.size = instance.size
+    layout_instance.bind(pos=update_rect, size=update_rect)
 
 In kv:
 
 .. code-block:: kv
 
-    ...
-    ...
     FloatLayout:
         canvas.before:
             Color:
@@ -370,41 +373,37 @@ Pure Python way::
     from kivy.graphics import Color, Rectangle
     from kivy.uix.floatlayout import FloatLayout
     from kivy.uix.button import Button
-
-
+    
+    
     class RootWidget(FloatLayout):
-
+    
         def __init__(self, **kwargs):
             # make sure we aren't overriding any important functionality
             super(RootWidget, self).__init__(**kwargs)
-
+    
             # let's add a Widget to this layout
             self.add_widget(
-                            Button(
-                                    text="Hello World",
-                                    size_hint= (.5, .5),
-                                    pos_hint={'center_x':.5,
-                                            'center_y':.5}))
-
-
+                Button(
+                    text="Hello World",
+                    size_hint=(.5, .5),
+                    pos_hint={'center_x': .5, 'center_y': .5}))
+    
+    
     class MainApp(App):
-
+    
         def build(self):
             self.root = root = RootWidget()
-            root.bind(
-                        size=self._update_rect,
-                        pos=self._update_rect)
-            with root.canvas.before:
-                Color(0, 1, 0, 1) # green; colors range from 0-1 not 0-255
-                self.rect = Rectangle(
-                                        size=root.size,
-                                        pos=root.pos)
-            return root
+            root.bind(size=self._update_rect, pos=self._update_rect)
 
+            with root.canvas.before:
+                Color(0, 1, 0, 1)  # green; colors range from 0-1 not 0-255
+                self.rect = Rectangle(size=root.size, pos=root.pos)
+            return root
+    
         def _update_rect(self, instance, value):
             self.rect.pos = instance.pos
             self.rect.size = instance.size
-
+    
     if __name__ == '__main__':
         MainApp().run()
 
@@ -441,12 +440,12 @@ Both of the Apps should look something like this:
 
 .. image:: images/layout_background.png
 
-**To add a color to the background of a **custom layouts rule/class** **
+Add a color to the background of a **custom layouts rule/class**
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The way we add background to the layout's instance can quickly become
-cumbersome if we need to use multiple layouts. To help with this, override
-the Layout class with your own layout, and add a background
-within the class of the layout class itself.
+cumbersome if we need to use multiple layouts. To help with this, you can
+subclass the Layout and create your own layout that adds a background.
 
 Using Python::
 
@@ -455,50 +454,50 @@ Using Python::
     from kivy.uix.boxlayout import BoxLayout
     from kivy.uix.floatlayout import FloatLayout
     from kivy.uix.image import AsyncImage
-    from kivy.uix.button import Button
-
-
+    
+    
     class RootWidget(BoxLayout):
         pass
-
+    
+    
     class CustomLayout(FloatLayout):
-
+    
         def __init__(self, **kwargs):
             # make sure we aren't overriding any important functionality
             super(CustomLayout, self).__init__(**kwargs)
-
+    
             with self.canvas.before:
-                Color(0, 1, 0, 1) # green; colors range from 0-1 instead of 0-255
-                self.rect = Rectangle(
-                                size=self.size,
-                                pos=self.pos)
-
-            self.bind(
-                        size=self._update_rect,
-                        pos=self._update_rect)
-
+                Color(0, 1, 0, 1)  # green; colors range from 0-1 instead of 0-255
+                self.rect = Rectangle(size=self.size, pos=self.pos)
+    
+            self.bind(size=self._update_rect, pos=self._update_rect)
+    
         def _update_rect(self, instance, value):
             self.rect.pos = instance.pos
             self.rect.size = instance.size
-
-
+    
+    
     class MainApp(App):
-
+    
         def build(self):
             root = RootWidget()
             c = CustomLayout()
             root.add_widget(c)
-            c.add_widget(AsyncImage(source="http://www.everythingzoomer.com/wp-content/uploads/2013/01/Monday-joke-289x277.jpg",
-                                    size_hint= (1, .5),
-                                    pos_hint={'center_x':.5, 'center_y':.5}))
+            c.add_widget(
+                AsyncImage(
+                    source="http://www.everythingzoomer.com/wp-content/uploads/2013/01/Monday-joke-289x277.jpg",
+                    size_hint= (1, .5),
+                    pos_hint={'center_x':.5, 'center_y':.5}))
             root.add_widget(AsyncImage(source='http://www.stuffistumbledupon.com/wp-content/uploads/2012/05/Have-you-seen-this-dog-because-its-awesome-meme-puppy-doggy.jpg'))
             c = CustomLayout()
-            c.add_widget(AsyncImage(source="http://www.stuffistumbledupon.com/wp-content/uploads/2012/04/Get-a-Girlfriend-Meme-empty-wallet.jpg",
-                                    size_hint= (1, .5),
-                                    pos_hint={'center_x':.5, 'center_y':.5}))
+            c.add_widget(
+                AsyncImage(
+                    source="http://www.stuffistumbledupon.com/wp-content/uploads/2012/04/Get-a-Girlfriend-Meme-empty-wallet.jpg",
+                    size_hint= (1, .5),
+                    pos_hint={'center_x':.5, 'center_y':.5}))
             root.add_widget(c)
             return root
-
+    
     if __name__ == '__main__':
         MainApp().run()
 
@@ -610,6 +609,7 @@ Then, when we put this snippet into a Kivy app::
     class RootWidget(FloatLayout):
         pass
 
+
     class MainApp(App):
 
         def build(self):
@@ -674,15 +674,18 @@ We use this to display an animated background::
                 halign: 'justify'
     ''')
 
+
     class CustomLayout(GridLayout):
 
         background_image = ObjectProperty(
-                                        Image(
-                                            source='../examples/widgets/sequenced_images/data/images/button_white_animated.zip',
-                                            anim_delay=.1))
+            Image(
+                source='../examples/widgets/sequenced_images/data/images/button_white_animated.zip',
+                anim_delay=.1))
+
 
     class RootWidget(FloatLayout):
         pass
+
 
     class MainApp(App):
 
@@ -697,7 +700,7 @@ To try to understand what is happening here, start from line 13::
     texture: self.background_image.texture
 
 This specifies that the `texture` property of `BorderImage` will be updated
-whenever the `texture` property of `background_inage` updates. We define the
+whenever the `texture` property of `background_image` updates. We define the
 background_image property at line 40::
 
     background_image = ObjectProperty(...
@@ -710,7 +713,7 @@ the animation changes, and the texture of BorderImage instruction is updated in
 the process.
 
 You can also just blit custom data to the texture. For details, look at the
-documention of :class:`~kivy.graphics.texture.Texture`.
+documentation of :class:`~kivy.graphics.texture.Texture`.
 
 Nesting Layouts
 ---------------

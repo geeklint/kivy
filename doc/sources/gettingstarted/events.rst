@@ -10,7 +10,7 @@ by events.
     :class: gs-eleft
 
 The :doc:`/api-kivy.clock` allows you to schedule a function call in the
-future, as a one-time event with :meth:`~kivy.clock.ClockBase.schedule_once`,
+future as a one-time event with :meth:`~kivy.clock.ClockBase.schedule_once`,
 or as a repetitive event with :meth:`~kivy.clock.ClockBase.schedule_interval`.
 
 You can also create Triggered events with
@@ -25,8 +25,9 @@ for the same callback.
 
 All the mouse click, touch and scroll wheel events are part of the
 :class:`~kivy.input.motionevent.MotionEvent`, extended by
-:doc:`/api-kivy.input.postproc` and dispatched through the `on_motion` event in
-the :class:`~kivy.core.window.Window` class. This event then generates the
+:doc:`/api-kivy.input.postproc` and dispatched through the
+:attr:`~kivy.core.window.WindowBase.on_motion` event in
+the :class:`Window <kivy.core.window.WindowBase>` class. This event then generates the
 :meth:`~kivy.uix.widget.Widget.on_touch_down`,
 :meth:`~kivy.uix.widget.Widget.on_touch_move` and
 :meth:`~kivy.uix.widget.Widget.on_touch_up` events in the

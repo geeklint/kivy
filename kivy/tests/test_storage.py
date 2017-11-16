@@ -4,14 +4,33 @@ Storage tests
 '''
 
 import unittest
+from os.path import abspath, dirname, join
+import errno
+import os
 
 
 class StorageTestCase(unittest.TestCase):
     def test_dict_storage(self):
         from kivy.storage.dictstore import DictStore
-        data = {}
-        self._do_store_test_empty(DictStore(data))
-        self._do_store_test_filled(DictStore(data))
+        from tempfile import mkstemp
+        from os import unlink, close
+
+        try:
+            tmpfd, tmpfn = mkstemp('.dict')
+            close(tmpfd)
+
+            self._do_store_test_empty(DictStore(tmpfn))
+            self._do_store_test_filled(DictStore(tmpfn))
+        finally:
+            unlink(tmpfn)
+
+    def test_dict_storage_nofolder(self):
+        from kivy.storage.dictstore import DictStore
+        self._do_store_test_nofolder(DictStore)
+
+    def test_json_storage_nofolder(self):
+        from kivy.storage.jsonstore import JsonStore
+        self._do_store_test_nofolder(JsonStore)
 
     def test_json_storage(self):
         from kivy.storage.jsonstore import JsonStore
@@ -26,12 +45,34 @@ class StorageTestCase(unittest.TestCase):
         finally:
             unlink(tmpfn)
 
+        try:
+            tmpfd, tmpfn = mkstemp('.json')
+            close(tmpfd)
+            self._do_store_test_empty(JsonStore(tmpfn, indent=2))
+            self._do_store_test_filled(JsonStore(tmpfn, indent=2))
+        finally:
+            unlink(tmpfn)
+
+        try:
+            tmpfd, tmpfn = mkstemp('.json')
+            close(tmpfd)
+            self._do_store_test_empty(JsonStore(tmpfn, sort_keys=True))
+            self._do_store_test_filled(JsonStore(tmpfn, sort_keys=True))
+        finally:
+            unlink(tmpfn)
+
     def test_redis_storage(self):
+        if os.environ.get('NONETWORK'):
+            return
         try:
             from kivy.storage.redisstore import RedisStore
-            params = dict(db=15)
-            self._do_store_test_empty(RedisStore(params))
-            self._do_store_test_filled(RedisStore(params))
+            from redis.exceptions import ConnectionError
+            try:
+                params = dict(db=15)
+                self._do_store_test_empty(RedisStore(params))
+                self._do_store_test_filled(RedisStore(params))
+            except ConnectionError:
+                pass
         except ImportError:
             pass
 
@@ -61,7 +102,7 @@ class StorageTestCase(unittest.TestCase):
         self.assertTrue(len(list(store.find(attr1='Common'))) == 3)
         self.assertTrue(len(list(store.find(attr2='bleh'))) == 2)
         self.assertTrue(
-                len(list(store.find(attr1='Common', attr2='bleh'))) == 2)
+            len(list(store.find(attr1='Common', attr2='bleh'))) == 2)
         self.assertTrue(len(list(store.find(name='Name2', attr2='bleh'))) == 1)
         self.assertTrue(len(list(store.find(name='Name1', attr2='bleh'))) == 0)
 
@@ -77,3 +118,18 @@ class StorageTestCase(unittest.TestCase):
         self.assertTrue(store.delete('plop'))
         self.assertRaises(KeyError, lambda: store.delete('plop'))
         self.assertRaises(KeyError, lambda: store.get('plop'))
+
+    def _do_store_test_nofolder(self, store_cls):
+        ext = store_cls.__name__.lower()[:4]
+        path = join(
+            dirname(abspath(__file__)),
+            '__i_dont_exist__',
+            'test.' + ext
+        )
+        with self.assertRaises(IOError) as context:
+            store = store_cls(path)
+        self.assertEqual(context.exception.errno, errno.ENOENT)
+
+
+if __name__ == '__main__':
+    unittest.main()

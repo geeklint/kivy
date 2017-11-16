@@ -10,13 +10,15 @@ loading of modules is managed by the config file. Currently, we include:
       and a small graph indicating input activity.
     * :class:`~kivy.modules.keybinding`: Bind some keys to actions, such as a
       screenshot.
-    * :class:`~kivy.modules.recorder`: Record and playback a sequence of events.
+    * :class:`~kivy.modules.recorder`: Record and playback a sequence of
+      events.
     * :class:`~kivy.modules.screen`: Emulate the characteristics (dpi/density/
       resolution) of different screens.
-    * :class:`~kivy.modules.inspector`: Examines your widget heirarchy and
+    * :class:`~kivy.modules.inspector`: Examines your widget hierarchy and
       widget properties.
     * :class:`~kivy.modules.webdebugger`: Realtime examination of your app
       internals via a web browser.
+    * :class:`~kivy.modules.joycursor`: Navigate in your app with a joystick.
 
 Modules are automatically loaded from the Kivy path and User path:
 
@@ -81,10 +83,11 @@ Create a file in your `HOME/.kivy/mods`, and create 2 functions::
     def stop(win, ctx):
         pass
 
-Start/stop are functions that will be called for every window opened in Kivy.
-When you are starting a module, you can use these to store and manage the module
-state. Use the `ctx` variable as a dictionary. This context is unique for each
-instance/start() call of the module, and will be passed to stop() too.
+Start/stop are functions that will be called for every window opened in
+Kivy. When you are starting a module, you can use these to store and
+manage the module state. Use the `ctx` variable as a dictionary. This
+context is unique for each instance/start() call of the module, and will
+be passed to stop() too.
 
 '''
 
@@ -106,9 +109,12 @@ class ModuleContext:
     def __init__(self):
         self.config = {}
 
+    def __repr__(self):
+        return repr(self.config)
+
 
 class ModuleBase:
-    '''Handle Kivy modules. It will automatically load and instanciate the
+    '''Handle Kivy modules. It will automatically load and instantiate the
     module for the general window.'''
 
     def __init__(self, **kwargs):
@@ -147,7 +153,9 @@ class ModuleBase:
                 module = sys.modules[name]
             except ImportError:
                 Logger.exception('Modules: unable to import <%s>' % name)
-                raise
+                # protect against missing module dependency crash
+                self.mods[name]['module'] = None
+                return
         # basic check on module
         if not hasattr(module, 'start'):
             Logger.warning('Modules: Module <%s> missing start() function' %
@@ -165,21 +173,27 @@ class ModuleBase:
             Logger.warning('Modules: Module <%s> not found' % name)
             return
 
-        module = self.mods[name]['module']
-        if not self.mods[name]['activated']:
-            context = self.mods[name]['context']
+        mod = self.mods[name]
+
+        # ensure the module has been configured
+        if 'module' not in mod:
+            self._configure_module(name)
+
+        pymod = mod['module']
+        if not mod['activated']:
+            context = mod['context']
             msg = 'Modules: Start <{0}> with config {1}'.format(
-                    name, context)
+                  name, context)
             Logger.debug(msg)
-            module.start(win, context)
-            self.mods[name]['activated'] = True
+            pymod.start(win, context)
+            mod['activated'] = True
 
     def deactivate_module(self, name, win):
         '''Deactivate a module from a window'''
-        if not name in self.mods:
+        if name not in self.mods:
             Logger.warning('Modules: Module <%s> not found' % name)
             return
-        if not 'module' in self.mods[name]:
+        if 'module' not in self.mods[name]:
             return
 
         module = self.mods[name]['module']
@@ -204,7 +218,7 @@ class ModuleBase:
         modules_to_activate = [x[0] for x in Config.items('modules')]
         for win in self.wins:
             for name in self.mods:
-                if not name in modules_to_activate:
+                if name not in modules_to_activate:
                     self.deactivate_module(name, win)
             for name in modules_to_activate:
                 try:
@@ -253,19 +267,31 @@ class ModuleBase:
             self.mods[name]['module'].configure(config)
 
     def usage_list(self):
-        print()
         print('Available modules')
         print('=================')
-        for module in self.list():
-            if not 'module' in self.mods[module]:
+        for module in sorted(self.list()):
+            if 'module' not in self.mods[module]:
                 self.import_module(module)
+
+            # ignore modules without docstring
+            if not self.mods[module]['module'].__doc__:
+                continue
+
             text = self.mods[module]['module'].__doc__.strip("\n ")
-            print('%-12s: %s' % (module, text))
-        print()
+            text = text.split('\n')
+            # make sure we don't get IndexError along the way
+            # then pretty format the header
+            if len(text) > 2:
+                if text[1].startswith('='):
+                    # '\n%-12s: %s' -> 12 spaces + ": "
+                    text[1] = '=' * (14 + len(text[1]))
+            text = '\n'.join(text)
+            print('\n%-12s: %s' % (module, text))
+
 
 Modules = ModuleBase()
 Modules.add_path(kivy.kivy_modules_dir)
-if not 'KIVY_DOC' in os.environ:
+if 'KIVY_DOC' not in os.environ:
     Modules.add_path(kivy.kivy_usermodules_dir)
 
 if __name__ == '__main__':

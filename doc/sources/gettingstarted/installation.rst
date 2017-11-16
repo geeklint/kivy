@@ -16,13 +16,18 @@ specific platform:
     :class: gs-osimage
 
 .. image:: ../images/macosx.png
-    :alt: MacOSX
-    :target: ../installation/installation-macosx.html
+    :alt: OS X
+    :target: ../installation/installation-osx.html
     :class: gs-osimage
 
 .. image:: ../images/linux.png
     :alt: Linux
     :target: ../installation/installation-linux.html
+    :class: gs-osimage gs-osimage-last
+
+.. image:: ../images/raspberrypi.png
+    :alt: Raspberry Pi
+    :target: ../installation/installation-rpi.html
     :class: gs-osimage gs-osimage-last
 
 Development Version

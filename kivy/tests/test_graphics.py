@@ -5,7 +5,6 @@ Graphics tests
 Testing the simple vertex instructions
 '''
 
-import unittest
 from kivy.tests.common import GraphicUnitTest
 
 
@@ -89,7 +88,7 @@ class VertexInstructionTest(GraphicUnitTest):
         r(wid)
 
 
-class FBOInstructionTestCase(unittest.TestCase):
+class FBOInstructionTestCase(GraphicUnitTest):
 
     def test_fbo_pixels(self):
         from kivy.graphics import Fbo, ClearColor, ClearBuffers, Ellipse
@@ -101,9 +100,12 @@ class FBOInstructionTestCase(unittest.TestCase):
             Ellipse(pos=(100, 100), size=(100, 100))
         fbo.draw()
         data = fbo.pixels
-
-        import pygame
-        surface = pygame.image.fromstring(data, (512, 512), 'RGBA', True)
-        pygame.image.save(surface, "results.png")
+        fbo.texture.save('results.png')
 
 
+class TransformationsTestCase(GraphicUnitTest):
+
+    def test_identity_creation(self):
+        from kivy.graphics import LoadIdentity
+        mat = LoadIdentity()
+        self.assertTrue(mat.stack)

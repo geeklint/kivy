@@ -4,6 +4,9 @@ SimpleListAdapter
 
 .. versionadded:: 1.5
 
+.. deprecated:: 1.10.0
+    The feature has been deprecated.
+
 .. warning::
 
     This code is still experimental, and its API is subject to change in a
@@ -20,6 +23,7 @@ __all__ = ('SimpleListAdapter', )
 from kivy.adapters.adapter import Adapter
 from kivy.properties import ListProperty
 from kivy.lang import Builder
+from kivy.utils import deprecated
 
 
 class SimpleListAdapter(Adapter):
@@ -37,14 +41,16 @@ class SimpleListAdapter(Adapter):
     there is an args_converter, the data objects will be passed to it for
     instantiating the item view class instances.
 
-    :data:`data` is a :class:`~kivy.properties.ListProperty` and
+    :attr:`data` is a :class:`~kivy.properties.ListProperty` and
     defaults to [].
     '''
 
+    @deprecated
     def __init__(self, **kwargs):
         if 'data' not in kwargs:
             raise Exception('list adapter: input must include data argument')
-        if type(kwargs['data']) not in (tuple, list):
+        if not isinstance(kwargs['data'], list) and \
+                not isinstance(kwargs['data'], tuple):
             raise Exception('list adapter: data must be a tuple or list')
         super(SimpleListAdapter, self).__init__(**kwargs)
 
@@ -65,8 +71,9 @@ class SimpleListAdapter(Adapter):
 
         item_args = self.args_converter(index, item)
 
-        if self.cls:
-            instance = self.cls(**item_args)
+        cls = self.get_cls()
+        if cls:
+            instance = cls(**item_args)
             return instance
         else:
             return Builder.template(self.template, **item_args)

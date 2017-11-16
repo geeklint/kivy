@@ -12,12 +12,10 @@ __all__ = ('Instruction', 'InstructionGroup',
            'Canvas', 'CanvasBase',
            'RenderContext', 'Callback')
 
-include "config.pxi"
+include "../include/config.pxi"
 include "opcodes.pxi"
 
-from c_opengl cimport *
-IF USE_OPENGL_DEBUG == 1:
-    from c_opengl_debug cimport *
+from kivy.graphics.cgl cimport *
 from kivy.compat import PY2
 from kivy.logger import Logger
 from kivy.graphics.context cimport get_context, Context
@@ -32,11 +30,13 @@ cdef void reset_gl_context():
     global _need_reset_gl, _active_texture
     _need_reset_gl = 0
     _active_texture = 0
-    glEnable(GL_BLEND)
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
-    glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE)
-    glActiveTexture(GL_TEXTURE0)
-    glPixelStorei(GL_UNPACK_ALIGNMENT, 1)
+    cgl.glEnable(GL_BLEND)
+    cgl.glDisable(GL_DEPTH_TEST)
+    cgl.glEnable(GL_STENCIL_TEST)
+    cgl.glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
+    cgl.glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE)
+    cgl.glActiveTexture(GL_TEXTURE0)
+    cgl.glPixelStorei(GL_UNPACK_ALIGNMENT, 1)
 
 
 cdef class Instruction(ObjectWithUid):
@@ -57,13 +57,23 @@ cdef class Instruction(ObjectWithUid):
         if self.parent:
             self.parent.add(self)
 
-    cdef void apply(self):
-        pass
+    cdef int apply(self) except -1:
+        return 0
 
-    cdef void flag_update(self, int do_parent=1):
-        if do_parent == 1 and self.parent is not None:
-            self.parent.flag_update()
-        self.flags |= GI_NEEDS_UPDATE
+    IF DEBUG:
+        cpdef flag_update(self, int do_parent=1, list _instrs=None):
+            cdef list instrs = _instrs if _instrs else []
+            if _instrs and self in _instrs:
+                raise RuntimeError('Encountered instruction group render loop: %r in %r' % (self, _instrs,))
+            if do_parent == 1 and self.parent is not None:
+                instrs.append(self)
+                self.parent.flag_update(do_parent=1, _instrs=instrs)
+            self.flags |= GI_NEEDS_UPDATE
+    ELSE:
+        cpdef flag_update(self, int do_parent=1):
+            if do_parent == 1 and self.parent is not None:
+                self.parent.flag_update()
+            self.flags |= GI_NEEDS_UPDATE
 
     cdef void flag_update_done(self):
         self.flags &= ~GI_NEEDS_UPDATE
@@ -85,7 +95,7 @@ cdef class Instruction(ObjectWithUid):
     cdef void set_parent(self, Instruction parent):
         self.parent = parent
 
-    cdef void reload(self):
+    cdef void reload(self) except *:
         self.flags |= GI_NEEDS_UPDATE
         self.flags &= ~GI_NO_APPLY_ONCE
         self.flags &= ~GI_IGNORE
@@ -97,10 +107,10 @@ cdef class Instruction(ObjectWithUid):
             return False
 
     property proxy_ref:
-        '''Return a proxy reference to the Instruction, ie, without taking a
+        '''Return a proxy reference to the Instruction i.e. without creating a
         reference of the widget. See `weakref.proxy
         <http://docs.python.org/2/library/weakref.html?highlight=proxy#weakref.proxy>`_
-        for more information about it.
+        for more information.
 
         .. versionadded:: 1.7.2
         '''
@@ -111,8 +121,20 @@ cdef class Instruction(ObjectWithUid):
 
 
 cdef class InstructionGroup(Instruction):
-    '''Group of :class:`Instruction`. Adds the possibility of adding and
-    removing graphics instruction.
+    '''Group of :class:`Instructions <Instruction>`. Allows for the adding and
+    removing of graphics instructions. It can be used directly as follows::
+
+        blue = InstructionGroup()
+        blue.add(Color(0, 0, 1, 0.2))
+        blue.add(Rectangle(pos=self.pos, size=(100, 100)))
+
+        green = InstructionGroup()
+        green.add(Color(0, 1, 0, 0.4))
+        green.add(Rectangle(pos=(100, 100), size=(100, 100)))
+
+        # Here, self should be a Widget or subclass
+        [self.canvas.add(group) for group in [blue, green]]
+
     '''
     def __init__(self, **kwargs):
         Instruction.__init__(self, **kwargs)
@@ -123,7 +145,7 @@ cdef class InstructionGroup(Instruction):
         else:
             self.compiler = GraphicsCompiler()
 
-    cdef void apply(self):
+    cdef int apply(self) except -1:
         cdef Instruction c
         cdef list children
         if self.compiler is not None:
@@ -139,6 +161,7 @@ cdef class InstructionGroup(Instruction):
         else:
             for c in self.children:
                 c.apply()
+        return 0
 
     cdef void build(self):
         self.compiled_children = self.compiler.compile(self)
@@ -152,7 +175,7 @@ cdef class InstructionGroup(Instruction):
         return
 
     cpdef insert(self, int index, Instruction c):
-        '''Insert a new :class:`Instruction` in our list at index.
+        '''Insert a new :class:`Instruction` into our list at index.
         '''
         c.rinsert(self, index)
         self.flag_update()
@@ -174,7 +197,7 @@ cdef class InstructionGroup(Instruction):
         return len(self.children)
 
     cpdef clear(self):
-        '''Remove all the :class:`Instruction`.
+        '''Remove all the :class:`Instructions <Instruction>`.
         '''
         cdef Instruction c
         for c in self.children[:]:
@@ -183,7 +206,8 @@ cdef class InstructionGroup(Instruction):
             self.remove(c)
 
     cpdef remove_group(self, str groupname):
-        '''Remove all :class:`Instruction` with a specific group name.
+        '''Remove all :class:`Instructions <Instruction>` with a specific group
+        name.
         '''
         cdef Instruction c
         for c in self.children[:]:
@@ -193,13 +217,13 @@ cdef class InstructionGroup(Instruction):
                 self.remove(c)
 
     cpdef get_group(self, str groupname):
-        '''Return an iterable with all the :class:`Instruction` with a specific
-        group name.
+        '''Return an iterable for all the :class:`Instructions <Instruction>`
+        with a specific group name.
         '''
         cdef Instruction c
         return [c for c in self.children if c.group == groupname]
 
-    cdef void reload(self):
+    cdef void reload(self) except *:
         Instruction.reload(self)
         cdef Instruction c
         for c in self.children:
@@ -223,7 +247,7 @@ cdef class ContextInstruction(Instruction):
         cdef RenderContext context = getActiveContext()
         return context
 
-    cdef void apply(self):
+    cdef int apply(self) except -1:
         cdef RenderContext context = self.get_context()
         if self.context_push:
             context.push_states(self.context_push)
@@ -231,19 +255,19 @@ cdef class ContextInstruction(Instruction):
             context.set_states(self.context_state)
         if self.context_pop:
             context.pop_states(self.context_pop)
+        return 0
 
-    cdef void set_state(self, str name, value):
+    cdef int set_state(self, str name, value) except -1:
         self.context_state[name] = value
         self.flag_update()
 
-    cdef void push_state(self, str name):
+    cdef int push_state(self, str name) except -1:
         self.context_push.append(name)
         self.flag_update()
 
-    cdef void pop_state(self, str name):
+    cdef int pop_state(self, str name) except -1:
         self.context_pop.append(name)
         self.flag_update()
-
 
 cdef class VertexInstruction(Instruction):
     '''The VertexInstruction class is the base for all graphics instructions
@@ -294,7 +318,7 @@ cdef class VertexInstruction(Instruction):
             with self.canvas:
                 Rectangle(texture=texture, pos=self.pos, size=self.size)
 
-        Usually, you will use the :data:`source` attribute instead of the
+        Usually, you will use the :attr:`source` attribute instead of the
         texture.
         '''
         def __get__(self):
@@ -315,18 +339,20 @@ cdef class VertexInstruction(Instruction):
             with self.canvas:
                 Rectangle(source='mylogo.png', pos=self.pos, size=self.size)
 
-        Here's the equivalent in Kivy language::
+        Here's the equivalent in Kivy language:
+
+        .. code-block:: kv
 
             <MyWidget>:
                 canvas:
                     Rectangle:
-                        source: 'myfilename.png'
+                        source: 'mylogo.png'
                         pos: self.pos
                         size: self.size
 
         .. note::
 
-            The filename will be searched with the
+            The filename will be searched for using the
             :func:`kivy.resources.resource_find` function.
 
         '''
@@ -344,16 +370,16 @@ cdef class VertexInstruction(Instruction):
         can be negative, and would represent the 'flipped' texture. By default,
         the tex_coords are::
 
-            [u, v, u + w, v, u + w, y + h, u, y + h]
+            [u, v, u + w, v, u + w, v + h, u, v + h]
 
-        You can pass your own texture coordinates, if you want to achieve fancy
+        You can pass your own texture coordinates if you want to achieve fancy
         effects.
 
         .. warning::
 
-            The default value as mentioned before can be negative. Depending
+            The default values just mentioned can be negative. Depending
             on the image and label providers, the coordinates are flipped
-            vertically, because of the order in which the image is internally
+            vertically because of the order in which the image is internally
             stored. Instead of flipping the image data, we are just flipping
             the texture coordinates to be faster.
 
@@ -377,11 +403,12 @@ cdef class VertexInstruction(Instruction):
     cdef void build(self):
         pass
 
-    cdef void apply(self):
+    cdef int apply(self) except -1:
         if self.flags & GI_NEEDS_UPDATE:
             self.build()
             self.flag_update_done()
         self.batch.draw()
+        return 0
 
 
 cdef class Callback(Instruction):
@@ -406,8 +433,8 @@ cdef class Callback(Instruction):
         Note that if you perform many and/or costly calls to callbacks, you
         might potentially slow down the rendering performance significantly.
 
-    The drawing of your canvas can not happen until something new happens. From
-    your callback, you can ask for an update::
+    The updating of your canvas does not occur until something new happens.
+    From your callback, you can ask for an update::
 
         with self.canvas:
             self.cb = Callback(self.my_callback)
@@ -419,13 +446,13 @@ cdef class Callback(Instruction):
     have been manipulated by the other toolkit, and as soon as program flow
     returns to Kivy, it will just break. You can have glitches, crashes, black
     holes might occur, etc.
-    To avoid that, you can activate the :data:`reset_context` option. It will
-    reset the OpenGL context state to make Kivy's rendering correct, after the
+    To avoid that, you can activate the :attr:`reset_context` option. It will
+    reset the OpenGL context state to make Kivy's rendering correct after the
     call to your callback.
 
     .. warning::
 
-        The :data:`reset_context` is not a full OpenGL reset. If you have issues
+        The :attr:`reset_context` is not a full OpenGL reset. If you have issues
         regarding that, please contact us.
 
     '''
@@ -443,39 +470,39 @@ cdef class Callback(Instruction):
         '''
         self.flag_update()
 
-    cdef void apply(self):
+    cdef int apply(self) except -1:
         cdef RenderContext rcx
         cdef Context ctx
         cdef Shader shader
         cdef int i
 
-        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0)
-        glBindBuffer(GL_ARRAY_BUFFER, 0)
+        cgl.glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0)
+        cgl.glBindBuffer(GL_ARRAY_BUFFER, 0)
 
         if self.func(self):
             self.flag_update_done()
 
         if self._reset_context:
             # FIXME do that in a proper way
-            glDisable(GL_DEPTH_TEST)
-            glDisable(GL_CULL_FACE)
-            glDisable(GL_SCISSOR_TEST)
-            glEnable(GL_BLEND)
-            glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
-            glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE)
-            glUseProgram(0)
+            cgl.glDisable(GL_DEPTH_TEST)
+            cgl.glDisable(GL_CULL_FACE)
+            cgl.glDisable(GL_SCISSOR_TEST)
+            cgl.glEnable(GL_BLEND)
+            cgl.glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
+            cgl.glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE)
+            cgl.glUseProgram(0)
 
             # FIXME don't use 10. use max texture available from gl conf
             for i in xrange(10):
-                glActiveTexture(GL_TEXTURE0 + i)
-                glBindTexture(GL_TEXTURE_2D, 0)
-                glDisableVertexAttribArray(i)
-                glBindBuffer(GL_ARRAY_BUFFER, 0)
-                glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0)
+                cgl.glActiveTexture(GL_TEXTURE0 + i)
+                cgl.glBindTexture(GL_TEXTURE_2D, 0)
+                cgl.glDisableVertexAttribArray(i)
+                cgl.glBindBuffer(GL_ARRAY_BUFFER, 0)
+                cgl.glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0)
 
             # reset all the vertexformat in all shaders
             ctx = get_context()
-            for obj in ctx.l_shader:
+            for obj in ctx.lr_shader:
                 shader = obj()
                 if not shader:
                     continue
@@ -489,9 +516,11 @@ cdef class Callback(Instruction):
                 rcx.set_texture(index, texture)
 
             reset_gl_context()
+        return 0
 
-    cdef void enter(self):
+    cdef int enter(self) except -1:
         self._shader.use()
+        return 0
 
     property reset_context:
         '''Set this to True if you want to reset the OpenGL context for Kivy
@@ -508,7 +537,8 @@ cdef class Callback(Instruction):
 
 
 cdef class CanvasBase(InstructionGroup):
-    '''CanvasBase provides the context manager methods for :class:`Canvas`.'''
+    '''CanvasBase provides the context manager methods for the
+    :class:`Canvas`.'''
     def __enter__(self):
         pushActiveCanvas(self)
 
@@ -544,7 +574,7 @@ cdef class Canvas(CanvasBase):
         self._before = None
         self._after = None
 
-    cdef void reload(self):
+    cdef void reload(self) except *:
         return
         '''
         # XXX ensure it's not needed anymore.
@@ -569,11 +599,11 @@ cdef class Canvas(CanvasBase):
             self.remove(c)
 
     cpdef draw(self):
-        '''Apply the instruction on our window.
+        '''Apply the instruction to our window.
         '''
         self.apply()
 
-    cdef void apply(self):
+    cdef int apply(self) except -1:
         cdef float opacity = self._opacity
         cdef float rc_opacity
         cdef RenderContext rc
@@ -585,6 +615,7 @@ cdef class Canvas(CanvasBase):
         InstructionGroup.apply(self)
         if opacity != 1.0:
             rc.pop_state('opacity')
+        return 0
 
     cpdef add(self, Instruction c):
         # the after group must remain the last one.
@@ -626,7 +657,7 @@ cdef class Canvas(CanvasBase):
             return self._after
 
     property has_before:
-        '''Property to see if the canvas.before is already created
+        '''Property to see if the :attr:`before` group has already been created.
 
         .. versionadded:: 1.7.0
         '''
@@ -634,7 +665,7 @@ cdef class Canvas(CanvasBase):
             return self._before is not None
 
     property has_after:
-        '''Property to see if the canvas.after is already created
+        '''Property to see if the :attr:`after` group has already been created.
 
         .. versionadded:: 1.7.0
         '''
@@ -643,17 +674,17 @@ cdef class Canvas(CanvasBase):
 
 
     property opacity:
-        '''Property for get/set the opacity value of the canvas.
+        '''Property to get/set the opacity value of the canvas.
 
         .. versionadded:: 1.4.1
 
         The opacity attribute controls the opacity of the canvas and its
         children.  Be careful, it's a cumulative attribute: the value is
-        multiplied to the current global opacity, and the result is applied to
+        multiplied to the current global opacity and the result is applied to
         the current context color.
 
-        For example: if your parent have an opacity of 0.5, and one children have an
-        opacity of 0.2, the real opacity of the children will be 0.5 * 0.2 = 0.1.
+        For example: if your parent has an opacity of 0.5 and a child has an
+        opacity of 0.2, the real opacity of the child will be 0.5 * 0.2 = 0.1.
 
         Then, the opacity is applied on the shader as::
 
@@ -668,7 +699,7 @@ cdef class Canvas(CanvasBase):
 
 # Active Canvas and getActiveCanvas function is used
 # by instructions, so they know which canvas to add
-# tehmselves to
+# themselves to
 cdef CanvasBase ACTIVE_CANVAS = None
 
 cdef CanvasBase getActiveCanvas():
@@ -676,7 +707,7 @@ cdef CanvasBase getActiveCanvas():
     return ACTIVE_CANVAS
 
 # Canvas Stack, for internal use so canvas can be bound
-# inside other canvas, and restroed when other canvas is done
+# inside other canvas, and restored when other canvas is done
 cdef list CANVAS_STACK = list()
 
 cdef pushActiveCanvas(CanvasBase c):
@@ -712,6 +743,7 @@ cdef class RenderContext(Canvas):
     def __cinit__(self, *args, **kwargs):
         self._use_parent_projection = 0
         self._use_parent_modelview = 0
+        self._use_parent_frag_modelview = 0
         self.bind_texture = dict()
 
     def __init__(self, *args, **kwargs):
@@ -734,6 +766,7 @@ cdef class RenderContext(Canvas):
             'color'    : [[1.0,1.0,1.0,1.0]],
             'projection_mat': [Matrix()],
             'modelview_mat' : [Matrix()],
+            'frag_modelview_mat' : [Matrix()],
         }
 
         cdef str key
@@ -745,6 +778,8 @@ cdef class RenderContext(Canvas):
             self._use_parent_projection = bool(int(kwargs['use_parent_projection']))
         if 'use_parent_modelview' in kwargs:
             self._use_parent_modelview = bool(int(kwargs['use_parent_modelview']))
+        if 'use_parent_frag_modelview' in kwargs:
+            self._use_parent_frag_modelview = bool(int(kwargs['use_parent_frag_modelview']))
 
     cdef void set_state(self, str name, value, int apply_now=0):
         # Upload the uniform value to the shader
@@ -762,29 +797,29 @@ cdef class RenderContext(Canvas):
     cdef get_state(self, str name):
         return self.state_stacks[name][-1]
 
-    cdef void set_states(self, dict states):
+    cdef int set_states(self, dict states) except -1:
         cdef str name
         for name, value in states.iteritems():
             self.set_state(name, value)
 
-    cdef void push_state(self, str name):
+    cdef int push_state(self, str name) except -1:
         stack = self.state_stacks[name]
         stack.append(stack[-1])
         self.flag_update()
 
-    cdef void push_states(self, list names):
+    cdef int push_states(self, list names) except -1:
         cdef str name
         for name in names:
             self.push_state(name)
 
-    cdef void pop_state(self, str name):
+    cdef int pop_state(self, str name) except -1:
         stack = self.state_stacks[name]
         oldvalue = stack.pop()
         if oldvalue != stack[-1]:
             self.set_state(name, stack[-1])
             self.flag_update()
 
-    cdef void pop_states(self, list names):
+    cdef int pop_states(self, list names) except -1:
         cdef str name
         for name in names:
             self.pop_state(name)
@@ -800,17 +835,19 @@ cdef class RenderContext(Canvas):
         self.bind_texture[index] = texture
         if _active_texture != index:
             _active_texture = index
-            glActiveTexture(GL_TEXTURE0 + index)
+            cgl.glActiveTexture(GL_TEXTURE0 + index)
         texture.bind()
         self.flag_update()
 
-    cdef void enter(self):
+    cdef int enter(self) except -1:
         self._shader.use()
+        return 0
 
-    cdef void leave(self):
+    cdef int leave(self) except -1:
         self._shader.stop()
+        return 0
 
-    cdef void apply(self):
+    cdef int apply(self) except -1:
         cdef list keys
         if PY2:
             keys = self.state_stacks.keys()
@@ -824,6 +861,9 @@ cdef class RenderContext(Canvas):
         if self._use_parent_modelview:
             self.set_state('modelview_mat',
                     active_context.get_state('modelview_mat'), 0)
+        if self._use_parent_frag_modelview:
+            self.set_state('frag_modelview_mat',
+                    active_context.get_state('frag_modelview_mat'), 0)
         pushActiveContext(self)
         if _need_reset_gl:
             reset_gl_context()
@@ -833,7 +873,9 @@ cdef class RenderContext(Canvas):
         popActiveContext()
         self.flag_update_done()
 
-    cdef void reload(self):
+        return 0
+
+    cdef void reload(self) except *:
         pushActiveContext(self)
         reset_gl_context()
         Canvas.reload(self)
@@ -893,6 +935,21 @@ cdef class RenderContext(Canvas):
                 self._use_parent_modelview = cvalue
                 self.flag_update()
 
+    property use_parent_frag_modelview:
+        '''If True, the parent fragment modelview matrix will be used.
+
+        .. versionadded:: 1.10.1
+
+            rc = RenderContext(use_parent_frag_modelview=True)
+        '''
+        def __get__(self):
+            return bool(self._use_parent_frag_modelview)
+        def __set__(self, value):
+            cdef cvalue = int(bool(value))
+            if self._use_parent_frag_modelview != cvalue:
+                self._use_parent_frag_modelview = cvalue
+                self.flag_update()
+
 
 cdef RenderContext ACTIVE_CONTEXT = None
 cdef list CONTEXT_STACK  = list()
@@ -917,4 +974,3 @@ cdef popActiveContext():
     ACTIVE_CONTEXT = CONTEXT_STACK.pop()
     if ACTIVE_CONTEXT:
         ACTIVE_CONTEXT.enter()
-

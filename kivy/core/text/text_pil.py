@@ -4,10 +4,8 @@ Text PIL: Draw text with PIL
 
 __all__ = ('LabelPIL', )
 
-try:
-    from PIL import Image, ImageFont, ImageDraw
-except:
-    raise
+from PIL import Image, ImageFont, ImageDraw
+
 
 from kivy.compat import text_type
 from kivy.core.text import LabelBase
@@ -28,7 +26,7 @@ class LabelPIL(LabelBase):
         except UnicodeDecodeError:
             id = '%s.%s' % (fontname, fontsize)
 
-        if not id in self._cache:
+        if id not in self._cache:
             font = ImageFont.truetype(fontname, fontsize)
             self._cache[id] = font
 
@@ -39,6 +37,9 @@ class LabelPIL(LabelBase):
         w, h = font.getsize(text)
         return w, h
 
+    def get_cached_extents(self):
+        return self._select_font().getsize
+
     def _render_begin(self):
         # create a surface, context, font...
         self._pil_im = Image.new('RGBA', self._size)
@@ -47,11 +48,11 @@ class LabelPIL(LabelBase):
     def _render_text(self, text, x, y):
         color = tuple([int(c * 255) for c in self.options['color']])
         self._pil_draw.text((int(x), int(y)),
-            text, font=self._select_font(), fill=color)
+                            text, font=self._select_font(), fill=color)
 
     def _render_end(self):
         data = ImageData(self._size[0], self._size[1],
-                         self._pil_im.mode.lower(), self._pil_im.tostring())
+                         self._pil_im.mode.lower(), self._pil_im.tobytes())
 
         del self._pil_im
         del self._pil_draw

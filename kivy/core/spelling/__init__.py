@@ -6,8 +6,8 @@ Provides abstracted access to a range of spellchecking backends as well as
 word suggestions. The API is inspired by enchant but other backends can be
 added that implement the same API.
 
-Spelling currently requires `python-enchant` for all platforms except OSX, where
-a native implementation exists.
+Spelling currently requires `python-enchant` for all platforms except
+OSX, where a native implementation exists.
 
 ::
 
@@ -60,7 +60,7 @@ class SpellingBase(object):
         one that is available.
 
         :Parameters:
-            `language` : str, defaults to None
+            `language`: str, defaults to None
                 If provided, indicates the language to be used. This needs
                 to be a language identifier understood by select_language(),
                 i.e. one of the options returned by list_languages().
@@ -82,7 +82,7 @@ class SpellingBase(object):
         for `language`.
 
         :Parameters:
-            `language` : str
+            `language`: str
                 Language identifier. Needs to be one of the options returned by
                 list_languages(). Sets the language used for spell checking and
                 word suggestions.
@@ -106,7 +106,7 @@ class SpellingBase(object):
         return False.
 
         :Parameters:
-            `word` : str
+            `word`: str
                 The word to check.
         '''
         raise NotImplementedError('check() not implemented by abstract ' +
@@ -119,7 +119,7 @@ class SpellingBase(object):
         as a list of strings.
 
         :Parameters:
-            `fragment` : str
+            `fragment`: str
                 The word fragment to get suggestions/corrections for.
                 E.g. 'foo' might become 'of', 'food' or 'foot'.
 
@@ -133,4 +133,3 @@ if sys.platform == 'darwin':
     _libs += (('osxappkit', 'spelling_osxappkit', 'SpellingOSXAppKit'), )
 
 Spelling = core_select_lib('spelling', _libs)
-

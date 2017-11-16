@@ -2,8 +2,16 @@
 Video
 =====
 
-Core class for reading video files and managing the
-:class:`kivy.graphics.texture.Texture` video.
+Core class for reading video files and managing the video
+:class:`~kivy.graphics.texture.Texture`.
+
+.. versionchanged:: 1.10.0
+    The pyglet, pygst and gi providers have been removed.
+
+.. versionchanged:: 1.8.0
+    There are now 2 distinct Gstreamer implementations: one using Gi/Gst
+    working for both Python 2+3 with Gstreamer 1.0, and one using PyGST
+    working only for Python 2 + Gstreamer 0.10.
 
 .. note::
 
@@ -16,25 +24,26 @@ from kivy.clock import Clock
 from kivy.core import core_select_lib
 from kivy.event import EventDispatcher
 from kivy.logger import Logger
+from kivy.compat import PY2
 
 
 class VideoBase(EventDispatcher):
     '''VideoBase, a class used to implement a video reader.
 
     :Parameters:
-        `filename` : str
+        `filename`: str
             Filename of the video. Can be a file or an URI.
-        `eos` : str, defaults to 'pause'
+        `eos`: str, defaults to 'pause'
             Action to take when EOS is hit. Can be one of 'pause', 'stop' or
             'loop'.
 
-            .. versionchanged::
+            .. versionchanged:: unknown
                 added 'pause'
 
-        `async` : bool, defaults to True
+        `async`: bool, defaults to True
             Load the video asynchronously (may be not supported by all
             providers).
-        `autoplay` : bool, defaults to False
+        `autoplay`: bool, defaults to False
             Auto play the video on init.
 
     :Events:
@@ -104,8 +113,8 @@ class VideoBase(EventDispatcher):
         self.load()
 
     filename = property(lambda self: self._get_filename(),
-            lambda self, x: self._set_filename(x),
-            doc='Get/set the filename/uri of the current video')
+                        lambda self, x: self._set_filename(x),
+                        doc='Get/set the filename/uri of the current video')
 
     def _get_position(self):
         return 0
@@ -114,8 +123,8 @@ class VideoBase(EventDispatcher):
         self.seek(pos)
 
     position = property(lambda self: self._get_position(),
-            lambda self, x: self._set_position(x),
-            doc='Get/set the position in the video (in seconds)')
+                        lambda self, x: self._set_position(x),
+                        doc='Get/set the position in the video (in seconds)')
 
     def _get_volume(self):
         return self._volume
@@ -124,30 +133,31 @@ class VideoBase(EventDispatcher):
         self._volume = volume
 
     volume = property(lambda self: self._get_volume(),
-            lambda self, x: self._set_volume(x),
-            doc='Get/set the volume in the video (1.0 = 100%)')
+                      lambda self, x: self._set_volume(x),
+                      doc='Get/set the volume in the video (1.0 = 100%)')
 
     def _get_duration(self):
         return 0
 
     duration = property(lambda self: self._get_duration(),
-            doc='Get the video duration (in seconds)')
+                        doc='Get the video duration (in seconds)')
 
     def _get_texture(self):
         return self._texture
 
     texture = property(lambda self: self._get_texture(),
-            doc='Get the video texture')
+                       doc='Get the video texture')
 
     def _get_state(self):
         return self._state
 
     state = property(lambda self: self._get_state(),
-            doc='Get the video playing status')
+                     doc='Get the video playing status')
 
-    def _do_eos(self):
-        '''.. versionchanged:: 1.4.0
-        Now dispatches the `on_eos` event.
+    def _do_eos(self, *args):
+        '''
+        .. versionchanged:: 1.4.0
+            Now dispatches the `on_eos` event.
         '''
         if self.eos == 'pause':
             self.pause()
@@ -164,7 +174,7 @@ class VideoBase(EventDispatcher):
         '''
         pass
 
-    def seek(self, percent):
+    def seek(self, percent, precise=True):
         '''Move on percent position'''
         pass
 
@@ -193,10 +203,16 @@ class VideoBase(EventDispatcher):
 
 
 # Load the appropriate provider
-Video = core_select_lib('video', (
-    ('gstreamer', 'video_gstreamer', 'VideoGStreamer'),
+video_providers = []
+try:
+    from kivy.lib.gstplayer import GstPlayer  # NOQA
+    video_providers += [('gstplayer', 'video_gstplayer', 'VideoGstplayer')]
+except ImportError:
+    pass
+video_providers += [
     ('ffmpeg', 'video_ffmpeg', 'VideoFFMpeg'),
-    ('pyglet', 'video_pyglet', 'VideoPyglet'),
-    ('null', 'video_null', 'VideoNull'),
-))
+    ('ffpyplayer', 'video_ffpyplayer', 'VideoFFPy'),
+    ('null', 'video_null', 'VideoNull')]
 
+
+Video = core_select_lib('video', video_providers)

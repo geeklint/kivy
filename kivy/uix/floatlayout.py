@@ -2,8 +2,8 @@
 Float Layout
 ============
 
-The :class:`FloatLayout` class will only honor the :data:`Widget.pos_hint` and
-:data:`Widget.size_hint` attributes.
+:class:`FloatLayout` honors the :attr:`~kivy.uix.widget.Widget.pos_hint`
+and the :attr:`~kivy.uix.widget.Widget.size_hint` properties of its children.
 
 .. only:: html
 
@@ -15,18 +15,18 @@ The :class:`FloatLayout` class will only honor the :data:`Widget.pos_hint` and
     .. image:: images/floatlayout.png
         :align: right
 
-For example, if you create a FloatLayout with size a of (300, 300)::
+For example, a FloatLayout with a size of (300, 300) is created::
 
     layout = FloatLayout(size=(300, 300))
 
-By default, all widgets have size_hint=(1, 1), so this button will have the
-same size as the layout::
+By default, all widgets have their size_hint=(1, 1), so this button will adopt
+the same size as the layout::
 
     button = Button(text='Hello world')
     layout.add_widget(button)
 
-To create a button of 50% width and 25% height of the layout and positioned at
-(20, 20), you can do::
+To create a button 50% of the width and 25% of the height of the layout and
+positioned at (20, 20), you can do::
 
     button = Button(
         text='Hello world',
@@ -41,13 +41,13 @@ If you want to create a button that will always be the size of layout minus
 
 .. note::
 
-    This layout can be used for an application. Most of time, you will
+    This layout can be used for an application. Most of the time, you will
     use the size of Window.
 
 .. warning::
 
-    If you are not using pos_hint, you must handle the position of
-    children: If the float layout is moving, you must handle moving
+    If you are not using pos_hint, you must handle the positioning of the
+    children: if the float layout is moving, you must handle moving the
     children too.
 
 '''
@@ -62,31 +62,55 @@ class FloatLayout(Layout):
     '''
 
     def __init__(self, **kwargs):
-        kwargs.setdefault('size', (1, 1))
         super(FloatLayout, self).__init__(**kwargs)
-        self.bind(
-            children=self._trigger_layout,
-            pos=self._trigger_layout,
-            pos_hint=self._trigger_layout,
-            size_hint=self._trigger_layout,
-            size=self._trigger_layout)
+        fbind = self.fbind
+        update = self._trigger_layout
+        fbind('children', update)
+        fbind('pos', update)
+        fbind('pos_hint', update)
+        fbind('size_hint', update)
+        fbind('size', update)
 
     def do_layout(self, *largs, **kwargs):
-        # optimization, until the size is 1, 1, don't do layout
-        if self.size == [1, 1]:
-            return
         # optimize layout by preventing looking at the same attribute in a loop
         w, h = kwargs.get('size', self.size)
         x, y = kwargs.get('pos', self.pos)
         for c in self.children:
             # size
             shw, shh = c.size_hint
-            if shw and shh:
-                c.size = w * shw, h * shh
-            elif shw:
-                c.width = w * shw
-            elif shh:
-                c.height = h * shh
+            shw_min, shh_min = c.size_hint_min
+            shw_max, shh_max = c.size_hint_max
+
+            if shw is not None and shh is not None:
+                c_w = shw * w
+                c_h = shh * h
+
+                if shw_min is not None and c_w < shw_min:
+                    c_w = shw_min
+                elif shw_max is not None and c_w > shw_max:
+                    c_w = shw_max
+
+                if shh_min is not None and c_h < shh_min:
+                    c_h = shh_min
+                elif shh_max is not None and c_h > shh_max:
+                    c_h = shh_max
+                c.size = c_w, c_h
+            elif shw is not None:
+                c_w = shw * w
+
+                if shw_min is not None and c_w < shw_min:
+                    c_w = shw_min
+                elif shw_max is not None and c_w > shw_max:
+                    c_w = shw_max
+                c.width = c_w
+            elif shh is not None:
+                c_h = shh * h
+
+                if shh_min is not None and c_h < shh_min:
+                    c_h = shh_min
+                elif shh_max is not None and c_h > shh_max:
+                    c_h = shh_max
+                c.height = c_h
 
             # pos
             for key, value in c.pos_hint.items():
@@ -109,16 +133,16 @@ class FloatLayout(Layout):
 
     def add_widget(self, widget, index=0):
         widget.bind(
-            #size=self._trigger_layout,
-            #size_hint=self._trigger_layout,
+            # size=self._trigger_layout,
+            # size_hint=self._trigger_layout,
             pos=self._trigger_layout,
             pos_hint=self._trigger_layout)
         return super(FloatLayout, self).add_widget(widget, index)
 
     def remove_widget(self, widget):
         widget.unbind(
-            #size=self._trigger_layout,
-            #size_hint=self._trigger_layout,
+            # size=self._trigger_layout,
+            # size_hint=self._trigger_layout,
             pos=self._trigger_layout,
             pos_hint=self._trigger_layout)
         return super(FloatLayout, self).remove_widget(widget)

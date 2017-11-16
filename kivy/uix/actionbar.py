@@ -7,22 +7,27 @@ Action Bar
 .. image:: images/actionbar.png
     :align: right
 
-The ActionBar widget is like Android's ActionBar, where items are stacked
-horizontally.
+The ActionBar widget is like Android's `ActionBar
+<http://developer.android.com/guide/topics/ui/actionbar.html>`_
+, where items are stacked horizontally.
 
-The :class:`ActionBar` will contain one :class:`ActionView` and many
-:class:`ContextualActionView`\s.
+An :class:`ActionBar` contains an :class:`ActionView` with various
+:class:`ContextualActionViews <kivy.uix.actionbar.ContextualActionView>`.
 An :class:`ActionView` will contain an :class:`ActionPrevious` having title,
 app_icon and previous_icon properties. An :class:`ActionView` will contain
-subclasses of :class:`ActionItem`\s. Some predefined ones inlcude an
-:class:`ActionButton`, an :class:`ActionToggleButton`, an :class:`ActionCheck`,
-an :class:`ActionSeparator` and an :class:`ActionGroup`.
+subclasses of :class:`ActionItems <ActionItem>`. Some predefined ones include
+an :class:`ActionButton`, an :class:`ActionToggleButton`, an
+:class:`ActionCheck`, an :class:`ActionSeparator` and an :class:`ActionGroup`.
 
-An :class:`ActionGroup` is used to display :class:`ActionItem`\s in a group.
-An :class:`ActionView` will always display an :class:`ActionGroup` after other
-:class:`ActionItem`\s.
+An :class:`ActionGroup` is used to display :class:`ActionItems <ActionItem>`
+in a group. An :class:`ActionView` will always display an :class:`ActionGroup`
+after other :class:`ActionItems <ActionItem>`.
 An :class:`ActionView` will contain an :class:`ActionOverflow`.
 A :class:`ContextualActionView` is a subclass of an :class:`ActionView`.
+
+.. versionchanged:: 1.10.1
+    :class:`ActionGroup` core rewritten from :class:`Spinner` to pure
+    :class:`DropDown`
 '''
 
 __all__ = ('ActionBarException', 'ActionItem', 'ActionButton',
@@ -37,12 +42,14 @@ from kivy.uix.widget import Widget
 from kivy.uix.button import Button
 from kivy.uix.togglebutton import ToggleButton
 from kivy.uix.checkbox import CheckBox
-from kivy.properties import ObjectProperty, NumericProperty, \
-    BooleanProperty, StringProperty, ListProperty, OptionProperty
 from kivy.uix.spinner import Spinner
+from kivy.uix.label import Label
+from kivy.config import Config
+from kivy.properties import ObjectProperty, NumericProperty, BooleanProperty, \
+    StringProperty, ListProperty, OptionProperty, AliasProperty
+from kivy.metrics import sp
 from kivy.lang import Builder
 from functools import partial
-from kivy.config import Config
 
 
 window_icon = ''
@@ -65,14 +72,24 @@ class ActionItem(object):
     minimum_width = NumericProperty('90sp')
     '''Minimum Width required by an ActionItem.
 
-       :data:`minimum_width` is a :class:`~kivy.properties.NumericProperty` and
+       :attr:`minimum_width` is a :class:`~kivy.properties.NumericProperty` and
        defaults to '90sp'.
+    '''
+
+    def get_pack_width(self):
+        return max(self.minimum_width, self.width)
+
+    pack_width = AliasProperty(get_pack_width, bind=('minimum_width', 'width'))
+    '''(read-only) The actual width to use when packing the item. Equal to the
+       greater of minimum_width and width.
+
+       :attr:`pack_width` is an :class:`~kivy.properties.AliasProperty`.
     '''
 
     important = BooleanProperty(False)
     '''Determines if an ActionItem is important or not.
 
-       :data:`important` is a :class:`~kivy.properties.BooleanProperty` and
+       :attr:`important` is a :class:`~kivy.properties.BooleanProperty` and
        defaults to False.
     '''
 
@@ -80,7 +97,7 @@ class ActionItem(object):
     '''(internal) Determines if an ActionItem is displayed inside an
        ActionGroup or not.
 
-       :data:`inside_group` is a :class:`~kivy.properties.BooleanProperty` and
+       :attr:`inside_group` is a :class:`~kivy.properties.BooleanProperty` and
        defaults to False.
     '''
 
@@ -89,7 +106,7 @@ class ActionItem(object):
     '''Background image of the ActionItem used for the default graphical
        representation when the ActionItem is not pressed.
 
-       :data:`background_normal` is a :class:`~kivy.properties.StringProperty`
+       :attr:`background_normal` is a :class:`~kivy.properties.StringProperty`
        and defaults to 'atlas://data/images/defaulttheme/action_item'.
     '''
 
@@ -98,16 +115,16 @@ class ActionItem(object):
     '''Background image of the ActionItem used for default graphical
        representation when an ActionItem is pressed.
 
-       :data:`background_down` is a :class:`~kivy.properties.StringProperty`
+       :attr:`background_down` is a :class:`~kivy.properties.StringProperty`
        and defaults to 'atlas://data/images/defaulttheme/action_item_down'.
     '''
 
     mipmap = BooleanProperty(True)
     '''Defines whether the image/icon dispayed on top of the button uses a
-    mipmap or not.
+       mipmap or not.
 
-    :data:`mipmap` is a :class:`~kivy.properties.BooleanProperty` and defaults
-    to `True`.
+       :attr:`mipmap` is a :class:`~kivy.properties.BooleanProperty` and
+       defaults to `True`.
     '''
 
 
@@ -135,7 +152,7 @@ class ActionButton(Button, ActionItem):
     '''
 
 
-class ActionPrevious(ActionButton):
+class ActionPrevious(BoxLayout, ActionItem):
     '''ActionPrevious class, see module documentation for more information.
     '''
 
@@ -144,37 +161,79 @@ class ActionPrevious(ActionButton):
        screen or not. If True, the previous_icon will be shown otherwise it
        will not.
 
-       :data:`with_previous` is a :class:`~kivy.properties.BooleanProperty` and
+       :attr:`with_previous` is a :class:`~kivy.properties.BooleanProperty` and
        defaults to True.
     '''
 
     app_icon = StringProperty(window_icon)
     '''Application icon for the ActionView.
 
-       :data:`app_icon` is a :class:`~kivy.properties.StringProperty`
+       :attr:`app_icon` is a :class:`~kivy.properties.StringProperty`
        and defaults to the window icon if set, otherwise
        'data/logo/kivy-icon-32.png'.
+    '''
+
+    app_icon_width = NumericProperty(0)
+    '''Width of app_icon image.
+    '''
+
+    app_icon_height = NumericProperty(0)
+    '''Height of app_icon image.
+    '''
+
+    color = ListProperty([1, 1, 1, 1])
+    '''Text color, in the format (r, g, b, a)
+
+       :attr:`color` is a :class:`~kivy.properties.ListProperty` and defaults
+       to [1, 1, 1, 1].
     '''
 
     previous_image = StringProperty(
         'atlas://data/images/defaulttheme/previous_normal')
     '''Image for the 'previous' ActionButtons default graphical representation.
 
-       :data:`previous_image` is a :class:`~kivy.properties.StringProperty` and
+       :attr:`previous_image` is a :class:`~kivy.properties.StringProperty` and
        defaults to 'atlas://data/images/defaulttheme/previous_normal'.
+    '''
+
+    previous_image_width = NumericProperty(0)
+    '''Width of previous_image image.
+    '''
+
+    previous_image_height = NumericProperty(0)
+    '''Height of previous_image image.
     '''
 
     title = StringProperty('')
     '''Title for ActionView.
 
-       :data:`title` is a :class:`~kivy.properties.StringProperty` and
+       :attr:`title` is a :class:`~kivy.properties.StringProperty` and
        defaults to ''.
     '''
 
+    markup = BooleanProperty(False)
+    '''If True, the text will be rendered using the
+       :class:`~kivy.core.text.markup.MarkupLabel`: you can change the
+       style of the text using tags. Check the
+       :doc:`api-kivy.core.text.markup` documentation for more
+       information.
+
+       :attr:`markup` is a :class:`~kivy.properties.BooleanProperty` and
+       defaults to False.
+    '''
+
     def __init__(self, **kwargs):
+        self.register_event_type('on_press')
+        self.register_event_type('on_release')
         super(ActionPrevious, self).__init__(**kwargs)
         if not self.app_icon:
             self.app_icon = 'data/logo/kivy-icon-32.png'
+
+    def on_press(self):
+        pass
+
+    def on_release(self):
+        pass
 
 
 class ActionToggleButton(ActionItem, ToggleButton):
@@ -186,6 +245,11 @@ class ActionToggleButton(ActionItem, ToggleButton):
     Button is in a group, the text will be preferred.
     '''
 
+
+class ActionLabel(ActionItem, Label):
+    '''ActionLabel class, see module documentation for more information.
+    '''
+    pass
 
 
 class ActionCheck(ActionItem, CheckBox):
@@ -202,7 +266,7 @@ class ActionSeparator(ActionItem, Widget):
         'atlas://data/images/defaulttheme/separator')
     '''Background image for the separators default graphical representation.
 
-       :data:`background_image` is a :class:`~kivy.properties.StringProperty`
+       :attr:`background_image` is a :class:`~kivy.properties.StringProperty`
        and defaults to 'atlas://data/images/defaulttheme/separator'.
     '''
 
@@ -210,17 +274,16 @@ class ActionSeparator(ActionItem, Widget):
 class ActionDropDown(DropDown):
     '''ActionDropDown class, see module documentation for more information.
     '''
-    pass
 
 
-class ActionGroup(ActionItem, Spinner):
+class ActionGroup(ActionItem, Button):
     '''ActionGroup class, see module documentation for more information.
     '''
 
     use_separator = BooleanProperty(False)
     '''Specifies whether to use a separator after/before this group or not.
 
-       :data:`use_separator` is a :class:`~kivy.properties.BooleanProperty` and
+       :attr:`use_separator` is a :class:`~kivy.properties.BooleanProperty` and
        defaults to False.
     '''
 
@@ -228,14 +291,14 @@ class ActionGroup(ActionItem, Spinner):
         'atlas://data/images/defaulttheme/separator')
     '''Background Image for an ActionSeparator in an ActionView.
 
-       :data:`separator_image` is a :class:`~kivy.properties.StringProperty`
+       :attr:`separator_image` is a :class:`~kivy.properties.StringProperty`
        and defaults to 'atlas://data/images/defaulttheme/separator'.
     '''
 
     separator_width = NumericProperty(0)
     '''Width of the ActionSeparator in an ActionView.
 
-       :data:`separator_width` is a :class:`~kivy.properties.NumericProperty`
+       :attr:`separator_width` is a :class:`~kivy.properties.NumericProperty`
        and defaults to 0.
     '''
 
@@ -245,17 +308,95 @@ class ActionGroup(ActionItem, Spinner):
        space, otherwise they will be displayed in a spinner. If mode is
        'spinner', then the children will always be displayed in a spinner.
 
-       :data:`mode` is a :class:`~kivy.properties.OptionProperty` and
+       :attr:`mode` is a :class:`~kivy.properties.OptionProperty` and
        defaults to 'normal'.
+    '''
+
+    dropdown_width = NumericProperty(0)
+    '''If non zero, provides the width for the associated DropDown. This is
+    useful when some items in the ActionGroup's DropDown are wider than usual
+    and you don't want to make the ActionGroup widget itself wider.
+
+    :attr:`dropdown_width` is an :class:`~kivy.properties.NumericProperty`
+    and defaults to 0.
+
+    .. versionadded:: 1.10.0
+    '''
+
+    is_open = BooleanProperty(False)
+    '''By default, the DropDown is not open. Set to True to open it.
+
+    :attr:`is_open` is a :class:`~kivy.properties.BooleanProperty` and
+    defaults to False.
     '''
 
     def __init__(self, **kwargs):
         self.list_action_item = []
         self._list_overflow_items = []
         super(ActionGroup, self).__init__(**kwargs)
-        self.dropdown_cls = ActionDropDown
+
+        # real is_open independent on public event
+        self._is_open = False
+
+        # create DropDown for the group and save its state to _is_open
+        self._dropdown = ActionDropDown()
+        self._dropdown.bind(attach_to=lambda ins, value: setattr(
+            self, '_is_open', True if value else False
+        ))
+
+        # put open/close responsibility to the event
+        # - trigger dropdown opening when clicked
+        self.bind(on_release=lambda *args: setattr(
+            self, 'is_open', True
+        ))
+
+        # - trigger dropdown closing when an item
+        #   in the dropdown is clicked
+        self._dropdown.bind(on_dismiss=lambda *args: setattr(
+            self, 'is_open', False
+        ))
+
+    def on_is_open(self, instance, value):
+        # opening only if the DropDown is closed
+        if value and not self._is_open:
+            self._toggle_dropdown()
+            self._dropdown.open(self)
+            return
+
+        # closing is_open manually, dismiss manually
+        if not value and self._is_open:
+            self._dropdown.dismiss()
+
+    def _toggle_dropdown(self, *largs):
+        ddn = self._dropdown
+        ddn.size_hint_x = None
+
+        # if container was set incorrectly and/or is missing
+        if not ddn.container:
+            return
+        children = ddn.container.children
+
+        # set DropDown width manually or if not set, then widen
+        # the ActionGroup + DropDown until the widest child fits
+        if children:
+            ddn.width = self.dropdown_width or max(
+                self.width, max(c.pack_width for c in children)
+            )
+        else:
+            ddn.width = self.width
+
+        # set the DropDown children's height
+        for item in children:
+            item.size_hint_y = None
+            item.height = max([self.height, sp(48)])
+
+            # dismiss DropDown manually
+            # auto_dismiss applies to touching outside of the DropDown
+            item.bind(on_release=ddn.dismiss)
 
     def add_widget(self, item):
+        # if adding ActionSeparator ('normal' mode,
+        # everything visible), add it to the parent
         if isinstance(item, ActionSeparator):
             super(ActionGroup, self).add_widget(item)
             return
@@ -266,29 +407,11 @@ class ActionGroup(ActionItem, Spinner):
         self.list_action_item.append(item)
 
     def show_group(self):
+        # 'normal' mode, items can fit to the view
         self.clear_widgets()
         for item in self._list_overflow_items + self.list_action_item:
             item.inside_group = True
             self._dropdown.add_widget(item)
-
-    def _build_dropdown(self, *largs):
-        if self._dropdown:
-            self._dropdown.dismiss()
-            self._dropdown = None
-        self._dropdown = self.dropdown_cls()
-
-    def _update_dropdown(self, *largs):
-        pass
-
-    def _toggle_dropdown(self, *largs):
-        self.is_open = not self.is_open
-        ddn = self._dropdown
-        ddn.size_hint_x = None
-        children = ddn.children[0].children
-        ddn.width = max([self.width, children[0].minimum_width])
-        for item in children:
-            item.size_hint_y = None
-            item.height = max([self.height, '48sp'])
 
     def clear_widgets(self):
         self._dropdown.clear_widgets()
@@ -302,8 +425,8 @@ class ActionOverflow(ActionGroup):
         'atlas://data/images/defaulttheme/overflow')
     '''Image to be used as an Overflow Image.
 
-      :data:`overflow_image` is an :class:`~kivy.properties.ObjectProperty` and
-       defaults to 'atlas://data/images/defaulttheme/overflow'.
+       :attr:`overflow_image` is an :class:`~kivy.properties.ObjectProperty`
+       and defaults to 'atlas://data/images/defaulttheme/overflow'.
     '''
 
     def add_widget(self, action_item, index=0):
@@ -315,7 +438,7 @@ class ActionOverflow(ActionGroup):
 
         if not isinstance(action_item, ActionItem):
             raise ActionBarException('ActionView only accepts ActionItem'
-                    ' (got {!r}'.format(action_item))
+                                     ' (got {!r}'.format(action_item))
 
         else:
             if index == 0:
@@ -327,7 +450,7 @@ class ActionOverflow(ActionGroup):
         if self._list_overflow_items == []:
             return
         self.show_group()
-        super(parent.__class__, parent).add_widget(self)
+        super(ActionView, parent).add_widget(self)
 
 
 class ActionView(BoxLayout):
@@ -337,36 +460,36 @@ class ActionView(BoxLayout):
     action_previous = ObjectProperty(None)
     '''Previous button for an ActionView.
 
-       :data:`action_previous` is an :class:`~kivy.properties.ObjectProperty`
-        and defaults to None.
+       :attr:`action_previous` is an :class:`~kivy.properties.ObjectProperty`
+       and defaults to None.
     '''
 
     background_color = ListProperty([1, 1, 1, 1])
     '''Background color in the format (r, g, b, a).
 
-       :data:`background_color` is a :class:`~kivy.properties.ListProperty` and
-        defaults to [1, 1, 1, 1].
+       :attr:`background_color` is a :class:`~kivy.properties.ListProperty` and
+       defaults to [1, 1, 1, 1].
     '''
 
     background_image = StringProperty(
         'atlas://data/images/defaulttheme/action_view')
     '''Background image of an ActionViews default graphical representation.
 
-      :data:`background_image` is an :class:`~kivy.properties.StringProperty`
-      and defaults to 'atlas://data/images/defaulttheme/action_view'.
+       :attr:`background_image` is an :class:`~kivy.properties.StringProperty`
+       and defaults to 'atlas://data/images/defaulttheme/action_view'.
     '''
 
     use_separator = BooleanProperty(False)
     '''Specify whether to use a separator before every ActionGroup or not.
 
-       :data:`use_separator` is a :class:`~kivy.properties.BooleanProperty` and
+       :attr:`use_separator` is a :class:`~kivy.properties.BooleanProperty` and
        defaults to False.
     '''
 
     overflow_group = ObjectProperty(None)
     '''Widget to be used for the overflow.
 
-       :data:`overflow_group` is an :class:`~kivy.properties.ObjectProperty`
+       :attr:`overflow_group` is an :class:`~kivy.properties.ObjectProperty`
        and defaults to an instance of :class:`ActionOverflow`.
     '''
 
@@ -375,7 +498,9 @@ class ActionView(BoxLayout):
         self._list_action_group = []
         super(ActionView, self).__init__(**kwargs)
         self._state = ''
-        self.overflow_group = ActionOverflow(use_separator=self.use_separator)
+        if not self.overflow_group:
+            self.overflow_group = ActionOverflow(
+                use_separator=self.use_separator)
 
     def on_action_previous(self, instance, value):
         self._list_action_items.insert(0, value)
@@ -386,7 +511,7 @@ class ActionView(BoxLayout):
 
         if not isinstance(action_item, ActionItem):
             raise ActionBarException('ActionView only accepts ActionItem'
-                    ' (got {!r}'.format(action_item))
+                                     ' (got {!r}'.format(action_item))
 
         elif isinstance(action_item, ActionOverflow):
             self.overflow_group = action_item
@@ -408,22 +533,36 @@ class ActionView(BoxLayout):
     def on_use_separator(self, instance, value):
         for group in self._list_action_group:
             group.use_separator = value
-        self.overflow_group.use_separator = value
+        if self.overflow_group:
+            self.overflow_group.use_separator = value
+
+    def remove_widget(self, widget):
+        super(ActionView, self).remove_widget(widget)
+        if isinstance(widget, ActionOverflow):
+            for item in widget.list_action_item:
+                if item in self._list_action_items:
+                    self._list_action_items.remove(item)
+
+        if widget in self._list_action_items:
+            self._list_action_items.remove(widget)
 
     def _clear_all(self):
+        lst = self._list_action_items[:]
         self.clear_widgets()
         for group in self._list_action_group:
             group.clear_widgets()
 
         self.overflow_group.clear_widgets()
         self.overflow_group.list_action_item = []
+        self._list_action_items = lst
 
     def _layout_all(self):
         # all the items can fit to the view, so expand everything
         super_add = super(ActionView, self).add_widget
         self._state = 'all'
         self._clear_all()
-        super_add(self.action_previous)
+        if not self.action_previous.parent:
+            super_add(self.action_previous)
         if len(self._list_action_items) > 1:
             for child in self._list_action_items[1:]:
                 child.inside_group = False
@@ -447,7 +586,8 @@ class ActionView(BoxLayout):
         super_add = super(ActionView, self).add_widget
         self._state = 'group'
         self._clear_all()
-        super_add(self.action_previous)
+        if not self.action_previous.parent:
+            super_add(self.action_previous)
         if len(self._list_action_items) > 1:
             for child in self._list_action_items[1:]:
                 super_add(child)
@@ -468,18 +608,19 @@ class ActionView(BoxLayout):
         hidden_items = []
         hidden_groups = []
         total_width = 0
-        super_add(self.action_previous)
+        if not self.action_previous.parent:
+            super_add(self.action_previous)
 
-        width = (self.width - self.overflow_group.minimum_width -
-                self.action_previous.minimum_width)
+        width = (self.width - self.overflow_group.pack_width -
+                 self.action_previous.minimum_width)
 
         if len(self._list_action_items):
             for child in self._list_action_items[1:]:
                 if child.important:
-                    if child.minimum_width + total_width < width:
+                    if child.pack_width + total_width < width:
                         super_add(child)
                         child.inside_group = False
-                        total_width += child.minimum_width
+                        total_width += child.pack_width
                     else:
                         hidden_items.append(child)
                 else:
@@ -489,23 +630,22 @@ class ActionView(BoxLayout):
         # ActionGroup
         if total_width < self.width:
             for group in self._list_action_group:
-                if group.minimum_width + total_width +\
-                   group.separator_width < width:
+                if group.pack_width + total_width +\
+                        group.separator_width < width:
                     super_add(group)
                     group.show_group()
-                    total_width += group.minimum_width +\
-                                   group.separator_width
+                    total_width += (group.pack_width +
+                                    group.separator_width)
 
                 else:
                     hidden_groups.append(group)
-
         group_index = len(self.children) - 1
         # if space is left then display other ActionItems
         if total_width < self.width:
             for child in hidden_items[:]:
-                if child.minimum_width + total_width < width:
+                if child.pack_width + total_width < width:
                     super_add(child, group_index)
-                    total_width += child.minimum_width
+                    total_width += child.pack_width
                     child.inside_group = False
                     hidden_items.remove(child)
 
@@ -524,7 +664,8 @@ class ActionView(BoxLayout):
                 over_add(child)
 
             overflow_group.show_group()
-            super_add(overflow_group)
+            if not self.overflow_group.parent:
+                super_add(overflow_group)
 
     def on_width(self, width, *args):
         # determine the layout to use
@@ -532,10 +673,10 @@ class ActionView(BoxLayout):
         # can we display all of them?
         total_width = 0
         for child in self._list_action_items:
-            total_width += child.minimum_width
+            total_width += child.pack_width
         for group in self._list_action_group:
             for child in group.list_action_item:
-                total_width += child.minimum_width
+                total_width += child.pack_width
         if total_width <= self.width:
             if self._state != 'all':
                 self._layout_all()
@@ -544,9 +685,9 @@ class ActionView(BoxLayout):
         # can we display them per group?
         total_width = 0
         for child in self._list_action_items:
-            total_width += child.minimum_width
+            total_width += child.pack_width
         for group in self._list_action_group:
-            total_width += group.minimum_width
+            total_width += group.pack_width
         if total_width < self.width:
             # ok, we can display all the items grouped
             if self._state != 'group':
@@ -575,15 +716,15 @@ class ActionBar(BoxLayout):
     action_view = ObjectProperty(None)
     '''action_view of ActionBar.
 
-       :data:`action_view` is an :class:`~kivy.properties.ObjectProperty` and
+       :attr:`action_view` is an :class:`~kivy.properties.ObjectProperty` and
        defaults to an instance of ActionView.
     '''
 
     background_color = ListProperty([1, 1, 1, 1])
     '''Background color, in the format (r, g, b, a).
 
-       :data:`background_color` is a :class:`~kivy.properties.ListProperty` and
-        defaults to [1, 1, 1, 1].
+       :attr:`background_color` is a :class:`~kivy.properties.ListProperty` and
+       defaults to [1, 1, 1, 1].
     '''
 
     background_image = StringProperty(
@@ -591,12 +732,12 @@ class ActionBar(BoxLayout):
 
     '''Background image of the ActionBars default graphical representation.
 
-      :data:`background_image` is an :class:`~kivy.properties.StringProperty`
+      :attr:`background_image` is an :class:`~kivy.properties.StringProperty`
       and defaults to 'atlas://data/images/defaulttheme/action_bar'.
     '''
 
     border = ListProperty([2, 2, 2, 2])
-    ''':data:`border` to be applied to the :data:`background_image`.
+    ''':attr:`border` to be applied to the :attr:`background_image`.
     '''
 
     __events__ = ('on_previous',)
@@ -641,7 +782,6 @@ class ActionBar(BoxLayout):
 if __name__ == "__main__":
     from kivy.base import runTouchApp
     from kivy.uix.floatlayout import FloatLayout
-    from kivy.lang import Builder
     from kivy.factory import Factory
 
     # XXX clean the first registration done from '__main__' here.
@@ -666,13 +806,14 @@ if __name__ == "__main__":
             ActionButton:
                 text: 'Btn2'
             ActionGroup:
-                text: 'Group 2'
+                text: 'Group 1'
                 ActionButton:
                     text: 'Btn3'
                 ActionButton:
                     text: 'Btn4'
             ActionGroup:
-                text: 'Group1'
+                dropdown_width: 200
+                text: 'Group 2'
                 ActionButton:
                     text: 'Btn5'
                 ActionButton:

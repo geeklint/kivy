@@ -64,7 +64,7 @@ class FlaskThread(threading.Thread):
         m['Python garbage'].append(len(garbage))
         m['FPS (internal)'].append(Clock.get_fps())
         m['FPS (real)'].append(Clock.get_rfps())
-        m['Events'].append(sum([len(x) for x in Clock._events.values()]))
+        m['Events'].append(len(Clock.get_events()))
         for category in Cache._categories:
             m['Cache ' + category].append(
                 len(Cache._objects.get(category, [])))
@@ -124,6 +124,7 @@ body {
 
 var graphics = {};
 var rid = 0;
+var ids = {}
 
 function request_metrics() {
     $.ajax({
@@ -139,14 +140,16 @@ function request_metrics() {
                 rid += 1;
                 $('<div class="panel panel' + rid + '"><div id="r' + rid + '"></div></div>').appendTo($('#metrics'));
                 $('.panel' + rid).prepend(
-                    $('<h2></h2>').html(key));
+                    $('<h2 id="h' + rid + '"></h2>').html(key));
                 graphics[key] = Raphael('r' + rid, 400, 150);
+                ids[key] = rid;
             }
 
             var indices = [];
             for (var i = 0; i < data[key].length; i++)
                 indices[i] = i;
             var r = graphics[key];
+            $('#h'+ids[key]).html(key + ': ' + data[key][i-1]);
             r.clear();
             r.linechart(26, 0, 340, 150, indices, data[key], {
                 shade: true, axis: "0 1 0 1" });

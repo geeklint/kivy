@@ -40,6 +40,7 @@ Builder.load_string('''
             text: 'pos_hint: top=1'
 ''')
 
+
 class Demo(GridLayout):
     pass
 
@@ -47,6 +48,7 @@ class Demo(GridLayout):
 class DemoApp(App):
     def build(self):
         return Demo()
+
 
 if __name__ == '__main__':
     DemoApp().run()

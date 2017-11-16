@@ -90,7 +90,7 @@ We use git as our version control system for our code base. If you have never
 used git or a similar DVCS (or even any VCS) before, we strongly suggest you
 take a look at the great documentation that is available for git online.
 The `Git Community Book <http://book.git-scm.com/>`_ or the
-`Git Screencasts <http://gitcasts.com/>`_ are both great ways to learn git.
+`Git Videos <https://git-scm.com/videos>`_ are both great ways to learn git.
 Trust us when we say that git is a great tool. It may seem daunting at first,
 but after a while you'll (hopefully) love it as much as we do. Teaching you git,
 however, is well beyond the scope of this document.
@@ -137,7 +137,7 @@ Now, whenever you want to create a patch, you follow the following steps:
 
         git checkout -b new_feature
 
-    #. Modify the code to do what you want (e.g., fix it).
+    #. Modify the code to do what you want (e.g. fix it).
     #. Test the code. Try to do this even for small fixes. You never know
        whether you have introduced some weird bug without testing.
     #. Do one or more minimal, atomic commits per fix or per feature.
@@ -252,7 +252,6 @@ Examples::
 Will result in:
 
     def my_new_feature(self, arg):
-        """
         New feature is awesome
 
         .. versionadded:: 1.1.4
@@ -261,10 +260,9 @@ Will result in:
 
         .. warning:: Please take a seat before trying this feature
 
-        """
 
 
-When refering to other parts of the api use:
+When referring to other parts of the api use:
 
 - ``:mod:`~kivy.module``` to refer to a module
 - ``:class:`~kivy.module.Class``` to refer to a class
@@ -273,7 +271,7 @@ When refering to other parts of the api use:
   for a class and a method)
 
 Obviously replacing `module` `Class` and `method` with their real name, and
-using using '.' to separate modules refering to imbricated modules, e.g::
+using using '.' to separate modules referring to imbricated modules, e.g::
 
     :mod:`~kivy.uix.floatlayout`
     :class:`~kivy.uix.floatlayout.FloatLayout`
@@ -288,7 +286,7 @@ Will result in:
     :doc:`/api-kivy.core.window`
 
 `:doc:` and `:mod:` are essentially the same, except for an anchor in the url
-which makes `:doc:` prefered for the cleaner url.
+which makes `:doc:` preferred for the cleaner url.
 
 To build your documentation, run::
 
@@ -298,7 +296,9 @@ If you updated your kivy install, and have some trouble compiling docs, run::
 
     make clean force html
 
-The docs will be generated in ``docs/build/html``.
+The docs will be generated in ``docs/build/html``. For more information on
+docstring formatting, please refer to the official 
+`Sphinx Documentation <http://sphinx-doc.org/>`_.
 
 Unit tests contributions
 ------------------------

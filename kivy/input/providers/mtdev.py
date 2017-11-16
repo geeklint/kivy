@@ -33,11 +33,14 @@ To fix that, you can add these options to the argument line:
 * max_touch_major : width shape maximum
 * min_touch_minor : width shape minimum
 * max_touch_minor : height shape maximum
+* rotation : 0,90,180 or 270 to rotate
 '''
 
 __all__ = ('MTDMotionEventProvider', 'MTDMotionEvent')
 
 import os
+import os.path
+import time
 from kivy.input.motionevent import MotionEvent
 from kivy.input.shape import ShapeRect
 
@@ -46,8 +49,14 @@ class MTDMotionEvent(MotionEvent):
 
     def depack(self, args):
         self.is_touch = True
-        self.sx = args['x']
-        self.sy = args['y']
+        if 'x' in args:
+            self.sx = args['x']
+        else:
+            self.sx = -1
+        if 'y' in args:
+            self.sy = args['y']
+        else:
+            self.sy = -1
         self.profile = ['pos']
         if 'size_w' in args and 'size_h' in args:
             self.shape = ShapeRect()
@@ -63,6 +72,7 @@ class MTDMotionEvent(MotionEvent):
         i, sx, sy, d = (self.id, self.sx, self.sy, self.device)
         return '<MTDMotionEvent id=%d pos=(%f, %f) device=%s>' % (i, sx, sy, d)
 
+
 if 'KIVY_DOC' in os.environ:
 
     # documentation hack
@@ -72,12 +82,12 @@ else:
     import threading
     import collections
     from kivy.lib.mtdev import Device, \
-            MTDEV_TYPE_EV_ABS, MTDEV_CODE_SLOT, MTDEV_CODE_POSITION_X, \
-            MTDEV_CODE_POSITION_Y, MTDEV_CODE_PRESSURE, \
-            MTDEV_CODE_TOUCH_MAJOR, MTDEV_CODE_TOUCH_MINOR, \
-            MTDEV_CODE_TRACKING_ID, MTDEV_ABS_POSITION_X, \
-            MTDEV_ABS_POSITION_Y, MTDEV_ABS_TOUCH_MINOR, \
-            MTDEV_ABS_TOUCH_MAJOR
+        MTDEV_TYPE_EV_ABS, MTDEV_CODE_SLOT, MTDEV_CODE_POSITION_X, \
+        MTDEV_CODE_POSITION_Y, MTDEV_CODE_PRESSURE, \
+        MTDEV_CODE_TOUCH_MAJOR, MTDEV_CODE_TOUCH_MINOR, \
+        MTDEV_CODE_TRACKING_ID, MTDEV_ABS_POSITION_X, \
+        MTDEV_ABS_POSITION_Y, MTDEV_ABS_TOUCH_MINOR, \
+        MTDEV_ABS_TOUCH_MAJOR
     from kivy.input.provider import MotionEventProvider
     from kivy.input.factory import MotionEventFactory
     from kivy.logger import Logger
@@ -88,8 +98,9 @@ else:
                    'min_position_y', 'max_position_y',
                    'min_pressure', 'max_pressure',
                    'min_touch_major', 'max_touch_major',
-                   'min_touch_minor', 'min_touch_major',
-                   'invert_x', 'invert_y')
+                   'min_touch_minor', 'max_touch_minor',
+                   'invert_x', 'invert_y',
+                   'rotation')
 
         def __init__(self, device, args):
             super(MTDMotionEventProvider, self).__init__(device, args)
@@ -102,7 +113,7 @@ else:
             if not args:
                 Logger.error('MTD: No filename pass to MTD configuration')
                 Logger.error('MTD: Use /dev/input/event0 for example')
-                return None
+                return
 
             # read filename
             self.input_fn = args[0]
@@ -116,8 +127,9 @@ else:
 
                 # ensure it's a key = value
                 if len(arg) != 2:
-                    err = 'MTD: Bad parameter %s: Not in key=value format' % arg
-                    Logger.error()
+                    err = 'MTD: Bad parameter %s: Not in key=value format' %\
+                        arg
+                    Logger.error(err)
                     continue
 
                 # ensure the key exist
@@ -136,6 +148,13 @@ else:
 
                 # all good!
                 Logger.info('MTD: Set custom %s to %d' % (key, int(value)))
+
+            if 'rotation' not in self.default_ranges:
+                self.default_ranges['rotation'] = 0
+            elif self.default_ranges['rotation'] not in (0, 90, 180, 270):
+                Logger.error('HIDInput: invalid rotation value ({})'.format(
+                    self.default_ranges['rotation']))
+                self.default_ranges['rotation'] = 0
 
         def start(self):
             if self.input_fn is None:
@@ -162,8 +181,25 @@ else:
             point = {}
             l_points = {}
 
+            def assign_coord(point, value, invert, coords):
+                cx, cy = coords
+                if invert:
+                    value = 1. - value
+                if rotation == 0:
+                    point[cx] = value
+                elif rotation == 90:
+                    point[cy] = value
+                elif rotation == 180:
+                    point[cx] = 1. - value
+                elif rotation == 270:
+                    point[cy] = 1. - value
+
             def process(points):
                 for args in points:
+                    # this can happen if we have a touch going on already at
+                    # the start of the app
+                    if 'id' not in args:
+                        continue
                     tid = args['id']
                     try:
                         touch = touches[tid]
@@ -189,7 +225,16 @@ else:
             # open mtdev device
             _fn = input_fn
             _slot = 0
-            _device = Device(_fn)
+            try:
+                _device = Device(_fn)
+            except OSError as e:
+                if e.errno == 13:  # Permission denied
+                    Logger.warn(
+                        'MTD: Unable to open device "{0}". Please ensure you'
+                        ' have the appropriate permissions.'.format(_fn))
+                    return
+                else:
+                    raise
             _changes = set()
 
             # prepare some vars to get limit of some component
@@ -227,7 +272,23 @@ else:
             Logger.info('MTD: <%s> axes invertion: X is %d, Y is %d' %
                         (_fn, invert_x, invert_y))
 
+            rotation = drs('rotation', 0)
+            Logger.info('MTD: <%s> rotation set to %d' %
+                        (_fn, rotation))
+            failures = 0
             while _device:
+                # if device have disconnected lets try to connect
+                if failures > 1000:
+                    Logger.info('MTD: <%s> input device disconnected' % _fn)
+                    while not os.path.exists(_fn):
+                        time.sleep(0.05)
+                    # input device is back online let's recreate device
+                    _device.close()
+                    _device = Device(_fn)
+                    Logger.info('MTD: <%s> input device reconnected' % _fn)
+                    failures = 0
+                    continue
+
                 # idle as much as we can.
                 while _device.idle(1000):
                     continue
@@ -236,7 +297,10 @@ else:
                 while True:
                     data = _device.get()
                     if data is None:
+                        failures += 1
                         break
+
+                    failures = 0
 
                     # set the working slot
                     if data.type == MTDEV_TYPE_EV_ABS and \
@@ -245,35 +309,42 @@ else:
                         continue
 
                     # fill the slot
-                    if not _slot in l_points:
+                    if not (_slot in l_points):
                         l_points[_slot] = dict()
                     point = l_points[_slot]
                     ev_value = data.value
                     ev_code = data.code
                     if ev_code == MTDEV_CODE_POSITION_X:
                         val = normalize(ev_value,
-                            range_min_position_x, range_max_position_x)
-                        if invert_x:
-                            val = 1. - val
-                        point['x'] = val
+                                        range_min_position_x,
+                                        range_max_position_x)
+                        assign_coord(point, val, invert_x, 'xy')
                     elif ev_code == MTDEV_CODE_POSITION_Y:
                         val = 1. - normalize(ev_value,
-                            range_min_position_y, range_max_position_y)
-                        if invert_y:
-                            val = 1. - val
-                        point['y'] = val
+                                             range_min_position_y,
+                                             range_max_position_y)
+                        assign_coord(point, val, invert_y, 'yx')
                     elif ev_code == MTDEV_CODE_PRESSURE:
                         point['pressure'] = normalize(ev_value,
-                            range_min_pressure, range_max_pressure)
+                                                      range_min_pressure,
+                                                      range_max_pressure)
                     elif ev_code == MTDEV_CODE_TOUCH_MAJOR:
                         point['size_w'] = normalize(ev_value,
-                            range_min_major, range_max_major)
+                                                    range_min_major,
+                                                    range_max_major)
                     elif ev_code == MTDEV_CODE_TOUCH_MINOR:
                         point['size_h'] = normalize(ev_value,
-                            range_min_minor, range_max_minor)
+                                                    range_min_minor,
+                                                    range_max_minor)
                     elif ev_code == MTDEV_CODE_TRACKING_ID:
                         if ev_value == -1:
                             point['delete'] = True
+                            # force process of changes here, as the slot can be
+                            # reused.
+                            _changes.add(_slot)
+                            process([l_points[x] for x in _changes])
+                            _changes.clear()
+                            continue
                         else:
                             point['id'] = ev_value
                     else:

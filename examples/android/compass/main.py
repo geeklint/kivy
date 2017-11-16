@@ -16,7 +16,6 @@ You can compile it with::
     ./build.py --package org.test.compass --name compass \
         --private ~/code/kivy/examples/android/compass \
         --window --version 1.0 debug installd
- 
 '''
 
 
@@ -47,7 +46,7 @@ class CompassApp(App):
         (x, y, z) = Hardware.magneticFieldSensorReading()
 
         # calculate the angle
-        needle_angle = Vector(x , y).angle((0, 1)) + 90.
+        needle_angle = Vector(x, y).angle((0, 1)) + 90.
 
         # animate the needle
         if self._anim:
@@ -64,6 +63,6 @@ class CompassApp(App):
         # reactivate the sensor when you are back to the app
         Hardware.magneticFieldSensorEnable(True)
 
+
 if __name__ == '__main__':
     CompassApp().run()
-

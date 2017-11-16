@@ -90,10 +90,10 @@ class PropertiesTestCase(unittest.TestCase):
         a.set(wid, 99)
         self.assertEqual(a.get(wid), 99)
 
-        #try:
+        # try:
         #    a.set(wid, '')  # string shouldn't be accepted
         #    self.fail('number accept string, fail.')
-        #except ValueError:
+        # except ValueError:
         #    pass
 
     def test_listcheck(self):
@@ -310,28 +310,20 @@ class PropertiesTestCase(unittest.TestCase):
         self.assertEqual(wid.basevalue, 1)
         self.assertEqual(observe_called, 0)
 
-        # first call, goes in cache
-        self.assertEqual(wid.prop, 2)
-        self.assertEqual(observe_called, 1)
-
-        # second call, cache used
-        self.assertEqual(wid.prop, 2)
-        self.assertEqual(observe_called, 1)
-
         # change the base value, should trigger an update for the cache
         wid.basevalue = 4
-        self.assertEqual(observe_called, 2)
+        self.assertEqual(observe_called, 1)
 
-        # now read the value again, should use the cache too
+        # now read the value again, should use the cache
         self.assertEqual(wid.prop, 8)
-        self.assertEqual(observe_called, 2)
+        self.assertEqual(observe_called, 1)
 
         # change the prop itself, should trigger an update for the cache
         wid.prop = 4
-        self.assertEqual(observe_called, 3)
+        self.assertEqual(observe_called, 2)
         self.assertEqual(wid.basevalue, 2)
         self.assertEqual(wid.prop, 4)
-        self.assertEqual(observe_called, 3)
+        self.assertEqual(observe_called, 2)
 
     def test_bounded_numeric_property(self):
         from kivy.properties import BoundedNumericProperty
@@ -391,3 +383,165 @@ class PropertiesTestCase(unittest.TestCase):
 
         bnp.set(wid, -10)
         self.assertEqual(bnp.get(wid), -5)
+
+    def test_numeric_string_with_units_check(self):
+        from kivy.properties import NumericProperty
+
+        a = NumericProperty()
+        a.link(wid, 'a')
+        a.link_deps(wid, 'a')
+        self.assertEqual(a.get(wid), 0)
+
+        a.set(wid, '55dp')
+        from kivy.core.window import Window
+        density = Window._density if hasattr(Window, '_density') else 1
+        self.assertEqual(a.get(wid), 55 * density)
+        self.assertEqual(a.get_format(wid), 'dp')
+
+        a.set(wid, u'55dp')
+        self.assertEqual(a.get(wid), 55 * density)
+        self.assertEqual(a.get_format(wid), 'dp')
+
+        a.set(wid, '99in')
+        self.assertEqual(a.get(wid), 9504.0 * density)
+        self.assertEqual(a.get_format(wid), 'in')
+
+        a.set(wid, u'99in')
+        self.assertEqual(a.get(wid), 9504.0 * density)
+        self.assertEqual(a.get_format(wid), 'in')
+
+    def test_numeric_string_without_units(self):
+        from kivy.properties import NumericProperty
+
+        a = NumericProperty()
+        a.link(wid, 'a')
+        a.link_deps(wid, 'a')
+        self.assertEqual(a.get(wid), 0)
+
+        a.set(wid, '2')
+        self.assertEqual(a.get(wid), 2)
+
+    def test_property_rebind(self):
+        from kivy.uix.label import Label
+        from kivy.uix.togglebutton import ToggleButton
+        from kivy.lang import Builder
+        from kivy.properties import ObjectProperty, DictProperty, AliasProperty
+        from kivy.clock import Clock
+
+        class ObjWidget(Label):
+            button = ObjectProperty(None, rebind=True, allownone=True)
+
+        class ObjWidgetRebindFalse(Label):
+            button = ObjectProperty(None, rebind=False, allownone=True)
+
+        class DictWidget(Label):
+            button = DictProperty({'button': None}, rebind=True,
+                                  allownone=True)
+
+        class DictWidgetFalse(Label):
+            button = DictProperty({'button': None}, rebind=False)
+
+        class AliasWidget(Label):
+            _button = None
+
+            def setter(self, value):
+                self._button = value
+                return True
+
+            def getter(self):
+                return self._button
+            button = AliasProperty(getter, setter, rebind=True)
+
+        Builder.load_string('''
+<ObjWidget>:
+    text: self.button.state if self.button is not None else 'Unset'
+
+<ObjWidgetRebindFalse>:
+    text: self.button.state if self.button is not None else 'Unset'
+
+<AliasWidget>:
+    text: self.button.state if self.button is not None else 'Unset'
+
+<DictWidget>:
+    text: self.button.button.state if self.button.button is not None\
+    else 'Unset'
+
+<DictWidgetFalse>:
+    text: self.button.button.state if self.button.button is not None\
+    else 'Unset'
+        ''')
+
+        obj = ObjWidget()
+        obj_false = ObjWidgetRebindFalse()
+        dict_rebind = DictWidget()
+        dict_false = DictWidgetFalse()
+        alias_rebind = AliasWidget()
+        button = ToggleButton()
+        Clock.tick()
+        self.assertEqual(obj.text, 'Unset')
+        self.assertEqual(obj_false.text, 'Unset')
+        self.assertEqual(dict_rebind.text, 'Unset')
+        self.assertEqual(dict_false.text, 'Unset')
+        self.assertEqual(alias_rebind.text, 'Unset')
+
+        obj.button = button
+        obj_false.button = button
+        dict_rebind.button.button = button
+        dict_false.button.button = button
+        alias_rebind.button = button
+        Clock.tick()
+        self.assertEqual(obj.text, 'normal')
+        self.assertEqual(obj_false.text, 'normal')
+        self.assertEqual(dict_rebind.text, 'normal')
+        self.assertEqual(dict_false.text, 'Unset')
+        self.assertEqual(alias_rebind.text, 'normal')
+
+        button.state = 'down'
+        Clock.tick()
+        self.assertEqual(obj.text, 'down')
+        self.assertEqual(obj_false.text, 'normal')
+        self.assertEqual(dict_rebind.text, 'down')
+        self.assertEqual(dict_false.text, 'Unset')
+        self.assertEqual(alias_rebind.text, 'down')
+
+        button.state = 'normal'
+        Clock.tick()
+        self.assertEqual(obj.text, 'normal')
+        self.assertEqual(obj_false.text, 'normal')
+        self.assertEqual(dict_rebind.text, 'normal')
+        self.assertEqual(dict_false.text, 'Unset')
+        self.assertEqual(alias_rebind.text, 'normal')
+
+        obj.button = None
+        obj_false.button = None
+        dict_rebind.button.button = None
+        dict_false.button.button = None
+        alias_rebind.button = None
+        Clock.tick()
+        self.assertEqual(obj.text, 'Unset')
+        self.assertEqual(obj_false.text, 'Unset')
+        self.assertEqual(dict_rebind.text, 'Unset')
+        self.assertEqual(dict_false.text, 'Unset')
+        self.assertEqual(alias_rebind.text, 'Unset')
+
+    def test_color_property(self):
+        from kivy.properties import ColorProperty
+
+        color = ColorProperty()
+        color.link(wid, 'color')
+        color.link_deps(wid, 'color')
+        self.assertEqual(color.get(wid), [1, 1, 1, 1])
+
+        color.set(wid, "#00ff00")
+        self.assertEqual(color.get(wid), [0, 1, 0, 1])
+
+        color.set(wid, "#7f7fff7f")
+        self.assertEqual(color.get(wid)[0], 127 / 255.)
+        self.assertEqual(color.get(wid)[1], 127 / 255.)
+        self.assertEqual(color.get(wid)[2], 1)
+        self.assertEqual(color.get(wid)[3], 127 / 255.)
+
+        color.set(wid, (1, 1, 0))
+        self.assertEqual(color.get(wid), [1, 1, 0, 1])
+        color.set(wid, (1, 1, 0, 0))
+        self.assertEqual(color.get(wid), [1, 1, 0, 0])

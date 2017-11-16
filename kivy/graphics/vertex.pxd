@@ -1,4 +1,4 @@
-from c_opengl cimport GLuint
+from kivy.graphics.cgl cimport GLuint
 
 cdef struct vertex_t:
     float x, y
@@ -14,8 +14,7 @@ ctypedef struct vertex_attr_t:
 
 cdef class VertexFormat:
     cdef vertex_attr_t *vattr
-    cdef int vattr_count
+    cdef long vattr_count
     cdef unsigned int vsize
     cdef unsigned int vbytesize
     cdef object last_shader
-

@@ -4,10 +4,6 @@ Accordion
 
 .. versionadded:: 1.0.8
 
-.. warning::
-
-    This widget is still experimental, and its API is subject to change in a
-    future version.
 
 .. image:: images/accordion.jpg
     :align: right
@@ -44,8 +40,8 @@ The current implementation divides the :class:`AccordionItem` into two parts:
 #. One container for the title bar
 #. One container for the content
 
-The title bar is made from a Kv template. We'll see how to create a new template
-to customize the design of the title bar.
+The title bar is made from a Kv template. We'll see how to create a new
+template to customize the design of the title bar.
 
 .. warning::
 
@@ -77,8 +73,8 @@ Or change the orientation to vertical::
 
     root = Accordion(orientation='vertical')
 
-The AccordionItem is more configurable and you can set your own title background
-when the item is collapsed or opened::
+The AccordionItem is more configurable and you can set your own title
+background when the item is collapsed or opened::
 
     item = AccordionItem(background_normal='image_when_collapsed.png',
         background_selected='image_when_selected.png')
@@ -106,16 +102,17 @@ class AccordionException(Exception):
 
 class AccordionItem(FloatLayout):
     '''AccordionItem class that must be used in conjunction with the
-    :class:`Accordion` class. See the module documentation for more information.
+    :class:`Accordion` class. See the module documentation for more
+    information.
     '''
 
     title = StringProperty('')
-    '''Title string of the item. The title might be used in conjuction with the
+    '''Title string of the item. The title might be used in conjunction with the
     `AccordionItemTitle` template. If you are using a custom template, you can
     use that property as a text entry, or not. By default, it's used for the
     title text. See title_template and the example below.
 
-    :data:`title` is a :class:`~kivy.properties.StringProperty` and defaults
+    :attr:`title` is a :class:`~kivy.properties.StringProperty` and defaults
     to ''.
     '''
 
@@ -128,7 +125,7 @@ class AccordionItem(FloatLayout):
     It's better to create and use your own template if the default template
     does not suffice.
 
-    :data:`title` is a :class:`~kivy.properties.StringProperty` and defaults to
+    :attr:`title` is a :class:`~kivy.properties.StringProperty` and defaults to
     'AccordionItemTitle'. The current default template lives in the
     `kivy/data/style.kv` file.
 
@@ -164,29 +161,29 @@ class AccordionItem(FloatLayout):
     '''Default arguments that will be passed to the
     :meth:`kivy.lang.Builder.template` method.
 
-    :data:`title_args` is a :class:`~kivy.properties.DictProperty` and defaults
+    :attr:`title_args` is a :class:`~kivy.properties.DictProperty` and defaults
     to {}.
     '''
 
     collapse = BooleanProperty(True)
     '''Boolean to indicate if the current item is collapsed or not.
 
-    :data:`collapse` is a :class:`~kivy.properties.BooleanProperty` and defaults
-    to True.
+    :attr:`collapse` is a :class:`~kivy.properties.BooleanProperty` and
+    defaults to True.
     '''
 
     collapse_alpha = NumericProperty(1.)
-    '''Value between 0 and 1 to indicate how much the item is collasped (1) or
+    '''Value between 0 and 1 to indicate how much the item is collapsed (1) or
     whether it is selected (0). It's mostly used for animation.
 
-    :data:`collapse_alpha` is a :class:`~kivy.properties.NumericProperty` and
+    :attr:`collapse_alpha` is a :class:`~kivy.properties.NumericProperty` and
     defaults to 1.
     '''
 
     accordion = ObjectProperty(None)
     '''Instance of the :class:`Accordion` that the item belongs to.
 
-    :data:`accordion` is an :class:`~kivy.properties.ObjectProperty` and
+    :attr:`accordion` is an :class:`~kivy.properties.ObjectProperty` and
     defaults to None.
     '''
 
@@ -195,7 +192,7 @@ class AccordionItem(FloatLayout):
     '''Background image of the accordion item used for the default graphical
     representation when the item is collapsed.
 
-    :data:`background_normal` is a :class:`~kivy.properties.StringProperty` and
+    :attr:`background_normal` is a :class:`~kivy.properties.StringProperty` and
     defaults to 'atlas://data/images/defaulttheme/button'.
     '''
 
@@ -206,7 +203,7 @@ class AccordionItem(FloatLayout):
 
     .. versionadded:: 1.8.0
 
-    :data:`background__disabled_normal` is a
+    :attr:`background__disabled_normal` is a
     :class:`~kivy.properties.StringProperty` and defaults to
     'atlas://data/images/defaulttheme/button_disabled'.
     '''
@@ -216,7 +213,7 @@ class AccordionItem(FloatLayout):
     '''Background image of the accordion item used for the default graphical
     representation when the item is selected (not collapsed).
 
-    :data:`background_normal` is a :class:`~kivy.properties.StringProperty` and
+    :attr:`background_normal` is a :class:`~kivy.properties.StringProperty` and
     defaults to 'atlas://data/images/defaulttheme/button_pressed'.
     '''
 
@@ -227,7 +224,7 @@ class AccordionItem(FloatLayout):
 
     .. versionadded:: 1.8.0
 
-    :data:`background_disabled_selected` is a
+    :attr:`background_disabled_selected` is a
     :class:`~kivy.properties.StringProperty` and defaults to
     'atlas://data/images/defaulttheme/button_disabled_pressed'.
     '''
@@ -260,10 +257,12 @@ class AccordionItem(FloatLayout):
         self._trigger_title = Clock.create_trigger(self._update_title, -1)
         self._anim_collapse = None
         super(AccordionItem, self).__init__(**kwargs)
-        self.bind(title=self._trigger_title,
-                  title_template=self._trigger_title,
-                  title_args=self._trigger_title)
-        self._trigger_title()
+        trigger_title = self._trigger_title
+        fbind = self.fbind
+        fbind('title', trigger_title)
+        fbind('title_template', trigger_title)
+        fbind('title_args', trigger_title)
+        trigger_title()
 
     def add_widget(self, widget):
         if self.container is None:
@@ -326,15 +325,17 @@ class Accordion(Widget):
         'horizontal', 'vertical'))
     '''Orientation of the layout.
 
-    :data:`orientation` is an :class:`~kivy.properties.OptionProperty` and
-	defaults to 'horizontal'. Can take a value of 'vertical' or 'horizontal'.
+    :attr:`orientation` is an :class:`~kivy.properties.OptionProperty`
+    and defaults to 'horizontal'. Can take a value of 'vertical' or
+    'horizontal'.
+
     '''
 
     anim_duration = NumericProperty(.25)
     '''Duration of the animation in seconds when a new accordion item is
     selected.
 
-    :data:`anim_duration` is a :class:`~kivy.properties.NumericProperty` and
+    :attr:`anim_duration` is a :class:`~kivy.properties.NumericProperty` and
     defaults to .25 (250ms).
     '''
 
@@ -343,29 +344,29 @@ class Accordion(Widget):
     :class:`kivy.animation.AnimationTransition` for more information about
     available animation functions.
 
-    :data:`anim_func` is an :class:`~kivy.properties.ObjectProperty` and
+    :attr:`anim_func` is an :class:`~kivy.properties.ObjectProperty` and
     defaults to 'out_expo'. You can set a string or a function to use as an
     easing function.
     '''
 
     min_space = NumericProperty('44dp')
     '''Minimum space to use for the title of each item. This value is
-	automatically set for each child every time the layout event occurs.
+    automatically set for each child every time the layout event occurs.
 
-    :data:`min_space` is a :class:`~kivy.properties.NumericProperty` and
-	defaults to 44 (px).
+    :attr:`min_space` is a :class:`~kivy.properties.NumericProperty` and
+    defaults to 44 (px).
     '''
 
     def __init__(self, **kwargs):
         super(Accordion, self).__init__(**kwargs)
-        self._trigger_layout = Clock.create_trigger(self._do_layout, -1)
-        self.bind(
-            orientation=self._trigger_layout,
-            children=self._trigger_layout,
-            size=self._trigger_layout,
-            pos=self._trigger_layout,
-            min_space=self._trigger_layout)
-
+        update = self._trigger_layout = \
+            Clock.create_trigger(self._do_layout, -1)
+        fbind = self.fbind
+        fbind('orientation', update)
+        fbind('children', update)
+        fbind('size', update)
+        fbind('pos', update)
+        fbind('min_space', update)
 
     def add_widget(self, widget, *largs):
         if not isinstance(widget, AccordionItem):
@@ -380,9 +381,7 @@ class Accordion(Widget):
             raise AccordionException(
                 'Accordion: instance not found in children')
         for widget in self.children:
-            if widget == instance:
-                continue
-            widget.collapse = True
+            widget.collapse = widget is not instance
         self._trigger_layout()
 
     def _do_layout(self, dt):
@@ -434,6 +433,7 @@ class Accordion(Widget):
                 child.height = child_space
                 y += child_space
 
+
 if __name__ == '__main__':
     from kivy.base import runTouchApp
     from kivy.uix.button import Button
@@ -446,10 +446,10 @@ if __name__ == '__main__':
         if x == 0:
             item.add_widget(Button(text='Content %d' % x))
         elif x == 1:
-            l = BoxLayout(orientation='vertical')
-            l.add_widget(Button(text=str(x), size_hint_y=None, height=35))
-            l.add_widget(Label(text='Content %d' % x))
-            item.add_widget(l)
+            z = BoxLayout(orientation='vertical')
+            z.add_widget(Button(text=str(x), size_hint_y=None, height=35))
+            z.add_widget(Label(text='Content %d' % x))
+            item.add_widget(z)
         else:
             item.add_widget(Label(text='This is a big content\n' * 20))
         acc.add_widget(item)
@@ -459,6 +459,11 @@ if __name__ == '__main__':
         acc.orientation = 'vertical' if o == 'horizontal' else 'horizontal'
     btn = Button(text='Toggle layout')
     btn.bind(on_release=toggle_layout)
+
+    def select_2nd_item(*l):
+        acc.select(acc.children[-2])
+    btn2 = Button(text='Select 2nd item')
+    btn2.bind(on_release=select_2nd_item)
 
     from kivy.uix.slider import Slider
     slider = Slider()
@@ -471,6 +476,7 @@ if __name__ == '__main__':
     root = BoxLayout(spacing=20, padding=20)
     controls = BoxLayout(orientation='vertical', size_hint_x=.3)
     controls.add_widget(btn)
+    controls.add_widget(btn2)
     controls.add_widget(slider)
     root.add_widget(controls)
     root.add_widget(acc)

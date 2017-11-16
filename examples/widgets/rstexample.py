@@ -8,7 +8,7 @@ And if i really want to write my code: &amp;bl; Hello world &amp;br;
 And video widget
 ----------------
 
-.. video:: softboy.avi
+.. video:: cityCC0.mpg
 
 
 Inline Markup
@@ -69,8 +69,8 @@ what
   Definition lists associate a term with a definition.
 
 how
-  The term is a one-line phrase, and the definition is one or more paragraphs or
-  body elements, indented relative to the term. Blank lines are not allowed
+  The term is a one-line phrase, and the definition is one or more paragraphs
+  or body elements, indented relative to the term. Blank lines are not allowed
   between term and definition.
 
 
@@ -118,9 +118,11 @@ Go to top_'''
 from kivy.uix.rst import RstDocument
 from kivy.app import App
 
+
 class RstApp(App):
     def build(self):
         return RstDocument(text=__doc__)
+
 
 if __name__ == '__main__':
     RstApp().run()

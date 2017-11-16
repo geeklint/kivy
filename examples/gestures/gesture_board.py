@@ -1,14 +1,11 @@
-#!/usr/bin/env python
-
 from kivy.app import App
 
 from kivy.uix.floatlayout import FloatLayout
-from kivy.uix.widget import Widget
-from kivy.uix.button import Button
 from kivy.graphics import Color, Ellipse, Line
 from kivy.gesture import Gesture, GestureDatabase
 
 from my_gestures import cross, circle, check, square
+
 
 def simplegesture(name, point_list):
     """
@@ -19,6 +16,7 @@ def simplegesture(name, point_list):
     g.normalize()
     g.name = name
     return g
+
 
 class GestureBoard(FloatLayout):
     """
@@ -43,7 +41,7 @@ class GestureBoard(FloatLayout):
         with self.canvas:
             Color(1, 1, 0)
             d = 30.
-            Ellipse(pos=(touch.x - d/2, touch.y - d/2), size=(d, d))
+            Ellipse(pos=(touch.x - d / 2, touch.y - d / 2), size=(d, d))
             userdata['line'] = Line(points=(touch.x, touch.y))
         return True
 
@@ -58,10 +56,8 @@ class GestureBoard(FloatLayout):
     def on_touch_up(self, touch):
         # touch is over, display informations, and check if it matches some
         # known gesture.
-        g = simplegesture(
-                '',
-                list(zip(touch.ud['line'].points[::2], touch.ud['line'].points[1::2]))
-                )
+        g = simplegesture('', list(zip(touch.ud['line'].points[::2],
+                                       touch.ud['line'].points[1::2])))
         # gestures to my_gestures.py
         print("gesture representation:", self.gdb.gesture_to_str(g))
 
@@ -76,19 +72,24 @@ class GestureBoard(FloatLayout):
 
         print(g2)
         if g2:
-            if g2[1] == circle: print("circle")
-            if g2[1] == square: print("square")
-            if g2[1] == check: print("check")
-            if g2[1] == cross: print("cross")
+            if g2[1] == circle:
+                print("circle")
+            if g2[1] == square:
+                print("square")
+            if g2[1] == check:
+                print("check")
+            if g2[1] == cross:
+                print("cross")
 
         # erase the lines on the screen, this is a bit quick&dirty, since we
         # can have another touch event on the way...
         self.canvas.clear()
 
+
 class DemoGesture(App):
     def build(self):
         return GestureBoard()
 
+
 if __name__ == '__main__':
     DemoGesture().run()
-

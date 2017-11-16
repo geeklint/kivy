@@ -1,4 +1,3 @@
-#:/usr/bin/env python2.7
 '''
 Texture compression tool
 ========================
@@ -160,7 +159,8 @@ class Etc1Tool(Tool):
                 unlink(raw_tex_fn)
 
         # 5. write texture info
-        self.write_tex(data, 'etc1_rgb8', (w, h), (w2, h2), self.options.mipmap)
+        self.write_tex(data, 'etc1_rgb8', (w, h), (w2, h2),
+                        self.options.mipmap)
 
 
 class PvrtcTool(Tool):
@@ -202,14 +202,20 @@ class PvrtcTool(Tool):
 
         # 3. for PVR, the image MUST be a square. use the bigger size then
         s2 = max(w2, h2)
-        print('PVR need a square image, the texture will be {0}x{0}'.format(s2))
+        print('PVR need a square image, the texture will be {0}x{0}'
+                .format(s2))
+
+        ext = self.source_fn.rsplit('.', 1)[-1]
+        tmpfile = '/tmp/ktexturecompress.{}'.format(ext)
+        image = image.resize((s2, s2))
+        image.save(tmpfile)
 
         # 4. invoke texture tool
         raw_tex_fn = self.tex_fn + '.raw'
         cmd = [self.texturetool]
         if self.options.mipmap:
             cmd += ['-m']
-        cmd += ['-e', 'PVRTC', '-o', raw_tex_fn, '-f', 'RAW', self.source_fn]
+        cmd += ['-e', 'PVRTC', '-o', raw_tex_fn, '-f', 'RAW', tmpfile]
         try:
             self.runcmd(cmd)
             with open(raw_tex_fn, 'rb') as fd:

@@ -2,18 +2,18 @@
 Context instructions
 ====================
 
-The context instructions represent non graphics elements like:
+The context instructions represent non graphics elements such as:
 
-* Matrix manipulation (PushMatrix, PopMatrix, Rotate, Translate, Scale,
+* Matrix manipulations (PushMatrix, PopMatrix, Rotate, Translate, Scale,
   MatrixInstruction)
-* Color manipulation (Color)
-* Texture binding (BindTexture)
+* Color manipulations (Color)
+* Texture bindings (BindTexture)
 
 .. versionchanged:: 1.0.8
-    LineWidth instruction have been removed. It wasn't working before, and we
-    actually no implementation working. We need to do more experimentation to
-    get it right. Check the bug `#207
-    <https://github.com/kivy/kivy/issues/207>`_ for more informations.
+    The LineWidth instruction has been removed. It wasn't working before and we
+    actually have no working implementation. We need to do more experimentation
+    to get it right. Check the bug
+    `#207 <https://github.com/kivy/kivy/issues/207>`_ for more information.
 
 '''
 
@@ -21,6 +21,7 @@ __all__ = ('Color', 'BindTexture', 'PushMatrix', 'PopMatrix',
            'Rotate', 'Scale', 'Translate', 'MatrixInstruction',
            'gl_init_resources')
 
+from kivy.compat import PY2
 from kivy.graphics.instructions cimport *
 from kivy.graphics.transformation cimport *
 
@@ -85,12 +86,12 @@ cdef tuple rgb_to_hsv(float r, float g, float b):
 
 cdef tuple hsv_to_rgb(float h, float s, float v):
     if s == 0.0: return v, v, v
-    cdef int i = int(h*6.0) # XXX assume int() truncates!
-    cdef float f = (h*6.0) - i
-    cdef float p = v*(1.0 - s)
-    cdef float q = v*(1.0 - s*f)
-    cdef float t = v*(1.0 - s*(1.0-f))
-    i = i%6
+    cdef long i = long(h * 6.0)
+    cdef float f = (h * 6.0) - i
+    cdef float p = v * (1.0 - s)
+    cdef float q = v * (1.0 - s * f)
+    cdef float t = v * (1.0 - s * (1.0 - f))
+    i = i % 6
     if i == 0: return v, t, p
     if i == 1: return q, v, p
     if i == 2: return p, v, t
@@ -101,7 +102,7 @@ cdef tuple hsv_to_rgb(float h, float s, float v):
 
 
 cdef class PushState(ContextInstruction):
-    '''Instruction that pushes arbitrary states/uniforms on the context
+    '''Instruction that pushes arbitrary states/uniforms onto the context
     state stack.
 
     .. versionadded:: 1.6.0
@@ -141,7 +142,7 @@ cdef class ChangeState(ContextInstruction):
 
 
 cdef class PopState(ContextInstruction):
-    '''Instruction that pops arbitrary states/uniforms on the context
+    '''Instruction that pops arbitrary states/uniforms off the context
     state stack.
 
     .. versionadded:: 1.6.0
@@ -164,10 +165,24 @@ cdef class PopState(ContextInstruction):
 
 
 cdef class Color(ContextInstruction):
-    '''Instruction to set the color state for any vertices being drawn after it.
-    All the values passed are between 0 and 1, not 0 and 255.
+    '''
+    Instruction to set the color state for any vertices being
+    drawn after it.
 
-    In Python, you can do::
+    This represents a color between 0 and 1, but is applied as a
+    *multiplier* to the texture of any vertex instructions following
+    it in a canvas. If no texture is set, the vertex instruction
+    takes the precise color of the Color instruction.
+
+    For instance, if a Rectangle has a texture with uniform color
+    ``(0.5, 0.5, 0.5, 1.0)`` and the preceding Color has
+    ``rgba=(1, 0.5, 2, 1)``, the actual visible color will be
+    ``(0.5, 0.25, 1.0, 1.0)`` since the Color instruction is applied as
+    a multiplier to every rgba component. In this case, a Color
+    component outside the 0-1 range gives a visible result as the
+    intensity of the blue component is doubled.
+
+    To declare a Color in Python, you can do::
 
         from kivy.graphics import Color
 
@@ -175,7 +190,7 @@ cdef class Color(ContextInstruction):
         c = Color(1, 0, 0)
         # create blue color
         c = Color(0, 1, 0)
-            # create blue color with 50% alpha
+        # create blue color with 50% alpha
         c = Color(0, 1, 0, .5)
 
         # using hsv mode
@@ -183,7 +198,14 @@ cdef class Color(ContextInstruction):
         # using hsv mode + alpha
         c = Color(0, 1, 1, .2, mode='hsv')
 
-    In kv lang::
+    You can also set color components that are available as properties
+    by passing them as keyword arguments::
+
+        c = Color(b=0.5)  # sets the blue component only
+
+    In kv lang you can set the color properties directly:
+
+    .. code-block:: kv
 
         <Rule>:
             canvas:
@@ -200,7 +222,6 @@ cdef class Color(ContextInstruction):
                 # using hsv mode
                 Color:
                     hsv: 0, 1, 1
-
                 # using hsv mode + alpha
                 Color:
                     hsv: 0, 1, 1
@@ -209,7 +230,7 @@ cdef class Color(ContextInstruction):
     '''
     def __init__(self, *args, **kwargs):
         ContextInstruction.__init__(self, **kwargs)
-        cdef int vec_size = len(args)
+        cdef long vec_size = len(args)
         if kwargs.get('mode', '') == 'hsv':
             if vec_size == 4:
                 self.hsv = args[:3]
@@ -226,43 +247,49 @@ cdef class Color(ContextInstruction):
             else:
                 self.set_state('color', [1.0, 1.0, 1.0, 1.0])
 
+        for property_name in ['r', 'g', 'b', 'a',
+                              'rgb', 'rgba', 'hsv',
+                              'h', 's', 'v']:
+            if property_name in kwargs:
+                setattr(self, property_name, kwargs[property_name])
+
     property rgba:
-        '''RGBA color, list of 4 values in 0-1 range
+        '''RGBA color, list of 4 values in 0-1 range.
         '''
         def __get__(self):
             return self.context_state['color']
         def __set__(self, rgba):
             self.set_state('color', [float(x) for x in rgba])
     property rgb:
-        '''RGB color, list of 3 values in 0-1 range, alpha will be 1.
+        '''RGB color, list of 3 values in 0-1 range. The alpha will be 1.
         '''
         def __get__(self):
             return self.rgba[:-1]
         def __set__(self, rgb):
             self.rgba = (rgb[0], rgb[1], rgb[2], 1.0)
     property r:
-        '''Red component, between 0-1
+        '''Red component, between 0 and 1.
         '''
         def __get__(self):
             return self.rgba[0]
         def __set__(self, r):
             self.rgba = [r, self.g, self.b, self.a]
     property g:
-        '''Green component, between 0-1
+        '''Green component, between 0 and 1.
         '''
         def __get__(self):
             return self.rgba[1]
         def __set__(self, g):
             self.rgba = [self.r, g, self.b, self.a]
     property b:
-        '''Blue component, between 0-1
+        '''Blue component, between 0 and 1.
         '''
         def __get__(self):
             return self.rgba[2]
         def __set__(self, b):
             self.rgba = [self.r, self.g, b, self.a]
     property a:
-        '''Alpha component, between 0-1
+        '''Alpha component, between 0 and 1.
         '''
         def __get__(self):
             return self.rgba[3]
@@ -276,21 +303,21 @@ cdef class Color(ContextInstruction):
         def __set__(self, x):
             self.rgb = hsv_to_rgb(x[0], x[1], x[2])
     property h:
-        '''Hue component, between 0-1
+        '''Hue component, between 0 and 1.
         '''
         def __get__(self):
             return self.hsv[0]
         def __set__(self, x):
             self.hsv = [x, self.s, self.v]
     property s:
-        '''Saturation component, between 0-1
+        '''Saturation component, between 0 and 1.
         '''
         def __get__(self):
             return self.hsv[1]
         def __set__(self, x):
             self.hsv = [self.h, x, self.v]
     property v:
-        '''Value component, between 0-1
+        '''Value component, between 0 and 1.
         '''
         def __get__(self):
             return self.hsv[2]
@@ -305,7 +332,7 @@ cdef class BindTexture(ContextInstruction):
 
     :Parameters:
         `texture`: Texture
-            specifies the texture to bind to the given index
+            Specifies the texture to bind to the given index.
     '''
     def __init__(self, **kwargs):
         ContextInstruction.__init__(self, **kwargs)
@@ -320,7 +347,7 @@ cdef class BindTexture(ContextInstruction):
 
         self.index = kwargs.get('index', 0)
 
-    cdef void apply(self):
+    cdef int apply(self) except -1:
         cdef RenderContext context = self.get_context()
         context.set_texture(self._index, self._texture)
 
@@ -332,8 +359,6 @@ cdef class BindTexture(ContextInstruction):
                 texture = get_default_texture()
             if self._texture is texture:
                 return
-            Logger.trace('BindTexture: setting texture %r (previous is %r)' % (
-                texture, self._texture))
             self._texture = texture
             self.flag_update()
 
@@ -347,12 +372,11 @@ cdef class BindTexture(ContextInstruction):
             self.flag_update()
 
     property source:
-        '''Set/get the source (filename) to load for texture.
+        '''Set/get the source (filename) to load for the texture.
         '''
         def __get__(self):
             return self._source
         def __set__(self, filename):
-            Logger.trace('BindTexture: setting source: <%s>' % filename)
             self._source = resource_find(filename)
             if self._source:
                 tex = Cache.get('kv.texture', filename)
@@ -369,34 +393,37 @@ cdef double radians(double degrees):
 
 
 cdef class LoadIdentity(ContextInstruction):
-    '''Load identity Matrix into the matrix stack sepcified by
+    '''Load the identity Matrix into the matrix stack specified by
     the instructions stack property (default='modelview_mat')
 
     .. versionadded:: 1.6.0
     '''
     def __init__(self, **kwargs):
-        self.context_state = kwargs.get('stack', 'modelview_mat')
+        self.stack = kwargs.get('stack', 'modelview_mat')
 
     property stack:
-        '''Name of the matrix stack to use. Can be 'modelview_mat' or
-        'projection_mat'.
+        '''Name of the matrix stack to use. Can be 'modelview_mat',
+        'projection_mat' or 'frag_modelview_mat'.
         '''
         def __get__(self):
-            return self.context_state.keys()[0]
+            if PY2:
+                return self.context_state.keys()[0]
+            else:
+                return list(self.context_state.keys())[0]
         def __set__(self, value):
             self.context_state = {value: Matrix()}
 
 
 cdef class PushMatrix(ContextInstruction):
-    '''PushMatrix on context's matrix stack
+    '''Push the matrix onto the context's matrix stack.
     '''
     def __init__(self, *args, **kwargs):
         ContextInstruction.__init__(self, **kwargs)
         self.stack = kwargs.get('stack', 'modelview_mat')
 
     property stack:
-        '''Name of the matrix stack to use. Can be 'modelview_mat' or
-        'projection_mat'.
+        '''Name of the matrix stack to use. Can be 'modelview_mat',
+        'projection_mat' or 'frag_modelview_mat'.
 
         .. versionadded:: 1.6.0
         '''
@@ -408,15 +435,15 @@ cdef class PushMatrix(ContextInstruction):
 
 
 cdef class PopMatrix(ContextInstruction):
-    '''Pop Matrix from context's matrix stack onto model view
+    '''Pop the matrix from the context's matrix stack onto the model view.
     '''
     def __init__(self, *args, **kwargs):
         ContextInstruction.__init__(self, **kwargs)
         self.stack = kwargs.get('stack', 'modelview_mat')
 
     property stack:
-        '''Name of the matrix stack to use. Can be 'modelview_mat' or
-        'projection_mat'.
+        '''Name of the matrix stack to use. Can be 'modelview_mat',
+        'projection_mat' or 'frag_modelview_mat'.
 
         .. versionadded:: 1.6.0
         '''
@@ -428,7 +455,7 @@ cdef class PopMatrix(ContextInstruction):
 
 
 cdef class ApplyContextMatrix(ContextInstruction):
-    '''pre-multiply the matrix at the top of the stack specified by
+    '''Pre-multiply the matrix at the top of the stack specified by
     `target_stack` by the matrix at the top of the 'source_stack'
 
     .. versionadded:: 1.6.0
@@ -437,7 +464,7 @@ cdef class ApplyContextMatrix(ContextInstruction):
         self.target_stack = kwargs.get('target_stack', 'modelview_mat')
         self.source_stack = kwargs.get('source_stack', 'modelview_mat')
 
-    cdef void apply(self):
+    cdef int apply(self) except -1:
         cdef RenderContext context = self.get_context()
         m = context.get_state(self._target_stack)
         m = m.multiply(context.get_state(self._source_stack))
@@ -445,7 +472,7 @@ cdef class ApplyContextMatrix(ContextInstruction):
 
     property target_stack:
         '''Name of the matrix stack to use as a target.
-        Can be 'modelview_mat' or 'projection_mat'.
+        Can be 'modelview_mat', 'projection_mat' or 'frag_modelview_mat'.
 
         .. versionadded:: 1.6.0
         '''
@@ -456,7 +483,7 @@ cdef class ApplyContextMatrix(ContextInstruction):
 
     property source_stack:
         '''Name of the matrix stack to use as a source.
-        Can be 'modelview_mat' or 'projection_mat'.
+        Can be 'modelview_mat', 'projection_mat' or 'frag_modelview_mat'.
 
         .. versionadded:: 1.6.0
         '''
@@ -468,19 +495,19 @@ cdef class ApplyContextMatrix(ContextInstruction):
 
 cdef class UpdateNormalMatrix(ContextInstruction):
     '''Update the normal matrix 'normal_mat' based on the current
-    modelview matrix.  will compute 'normal_mat' uniform as:
+    modelview matrix. This will compute 'normal_mat' uniform as:
     `inverse( transpose( mat3(mvm) ) )`
 
     .. versionadded:: 1.6.0
     '''
-    cdef void apply(self):
+    cdef int apply(self) except -1:
         cdef RenderContext context = self.get_context()
         mvm = context.get_state('modelview_mat')
         context.set_state('normal_mat', mvm.normal_matrix())
 
 
 cdef class MatrixInstruction(ContextInstruction):
-    '''Base class for Matrix Instruction on canvas
+    '''Base class for Matrix Instruction on the canvas.
     '''
 
     def __init__(self, *args, **kwargs):
@@ -488,9 +515,9 @@ cdef class MatrixInstruction(ContextInstruction):
         self.stack = kwargs.get('stack', 'modelview_mat')
         self._matrix = None
 
-    cdef void apply(self):
+    cdef int apply(self) except -1:
         '''Apply the matrix of this instance to the
-        context model view matrix
+        context model view matrix.
         '''
         cdef RenderContext context = self.get_context()
         cdef Matrix mvm
@@ -498,9 +525,9 @@ cdef class MatrixInstruction(ContextInstruction):
         context.set_state(self._stack, mvm.multiply(self.matrix))
 
     property matrix:
-        ''' Matrix property. Numpy matrix from transformation module
-        setting the matrix using this porperty when a change is made
-        is important, becasue it will notify the context about the update
+        ''' Matrix property. Matrix from the transformation module.
+        Setting the matrix using this property when a change is made
+        is important because it will notify the context about the update.
         '''
         def __get__(self):
             if self._matrix == None:
@@ -511,8 +538,8 @@ cdef class MatrixInstruction(ContextInstruction):
             self.flag_update()
 
     property stack:
-        '''Name of the matrix stack to use. Can be 'modelview_mat' or
-        'projection_mat'.
+        '''Name of the matrix stack to use. Can be 'modelview_mat',
+        'projection_mat' or 'frag_modelview_mat'.
 
         .. versionadded:: 1.6.0
         '''
@@ -524,36 +551,36 @@ cdef class MatrixInstruction(ContextInstruction):
 
 
 cdef class Transform(MatrixInstruction):
-    '''Transform class.  A matrix instruction class which
-    has function to modify the transformation matrix
+    '''Transform class. A matrix instruction class which
+    modifies the transformation matrix.
     '''
 
     def __init__(self, *args, **kwargs):
         MatrixInstruction.__init__(self, **kwargs)
 
     cpdef transform(self, Matrix trans):
-        '''Multiply the instructions matrix by trans
+        '''Multiply the instructions matrix by trans.
         '''
         self.matrix = self.matrix.multiply(trans)
 
     cpdef translate(self, float tx, float ty, float tz):
-        '''Translate the instrcutions transformation by tx, ty, tz
+        '''Translate the instructions transformation by tx, ty, tz.
         '''
         self.transform( Matrix().translate(tx, ty, tz) )
 
     cpdef rotate(self, float angle, float ax, float ay, float az):
-        '''Rotate the transformation by matrix by angle degress around the
-        axis defined by the vector ax, ay, az
+        '''Rotate the transformation by matrix by *angle* degrees around the
+        axis defined by the vector ax, ay, az.
         '''
         self.transform( Matrix().rotate(angle, ax, ay, az) )
 
     cpdef scale(self, float s):
-        '''Applies a uniform scaling of s to the matrix transformation
+        '''Applies a uniform scaling of s to the matrix transformation.
         '''
         self.transform( Matrix().scale(s, s, s) )
 
     cpdef identity(self):
-        '''Resets the transformation to the identity matrix
+        '''Resets the transformation to the identity matrix.
         '''
         self.matrix = Matrix()
 
@@ -561,7 +588,7 @@ cdef class Transform(MatrixInstruction):
 cdef class Rotate(Transform):
     '''Rotate the coordinate space by applying a rotation transformation
     on the modelview matrix. You can set the properties of the instructions
-    afterwards with e.g.::
+    afterwards with e.g. ::
 
         rot.angle = 90
         rot.axis = (0, 0, 1)
@@ -584,19 +611,25 @@ cdef class Rotate(Transform):
         if 'angle' in kwargs:
             self._angle = kwargs['angle']
         if 'origin' in kwargs:
-            self._origin = kwargs['origin']
+            origin = kwargs['origin']
+            if len(origin) == 3:
+                self._origin = tuple(origin)
+            elif len(origin) == 2:
+                self._origin = (origin[0], origin[1], 0.)
+            else:
+                raise Exception('invalid number of components in origin')
 
         self.compute()
 
 
     def set(self, float angle, float ax, float ay, float az):
-        '''Set the angle and axis of rotation
+        '''Set the angle and axis of rotation.
 
         >>> rotationobject.set(90, 0, 0, 1)
 
         .. deprecated:: 1.7.0
 
-            The set() method doesn't use the new :data:`origin` property.
+            The set() method doesn't use the new :attr:`origin` property.
         '''
         self._angle = angle
         self._axis = (ax, ay, az)
@@ -615,7 +648,7 @@ cdef class Rotate(Transform):
         self.matrix = matrix
 
     property angle:
-        '''Property for getting/settings the angle of the rotation
+        '''Property for getting/setting the angle of the rotation.
         '''
         def __get__(self):
             return self._angle
@@ -624,7 +657,7 @@ cdef class Rotate(Transform):
             self.compute()
 
     property axis:
-        '''Property for getting/settings the axis of the rotation
+        '''Property for getting/setting the axis of the rotation.
 
         The format of the axis is (x, y, z).
         '''
@@ -635,11 +668,11 @@ cdef class Rotate(Transform):
             self.compute()
 
     property origin:
-        '''Origin of the rotation
+        '''Origin of the rotation.
 
         .. versionadded:: 1.7.0
 
-        The format of the origin can be either (x, y) or (x, y, z)
+        The format of the origin can be either (x, y) or (x, y, z).
         '''
         def __get__(self):
             return self._origin
@@ -661,13 +694,24 @@ cdef class Scale(Transform):
        Scale(s)         # scale all three axes the same
        Scale(x, y, z)   # scale the axes independently
 
-    .. versionchanged:: 1.6.0
-        deprecated single scale property in favor of x, y, z, xyz axis
-        independant scaled factors.
+    .. deprecated:: 1.6.0
+        Deprecated single scale property in favor of x, y, z, xyz axis
+        independent scaled factors.
     '''
     def __init__(self, *args, **kwargs):
         cdef double x, y, z
         Transform.__init__(self, **kwargs)
+        self._origin = (0, 0, 0)
+
+        if 'origin' in kwargs:
+            origin = kwargs['origin']
+            if len(origin) == 3:
+                self._origin = tuple(origin)
+            elif len(origin) == 2:
+                self._origin = (origin[0], origin[1], 0.)
+            else:
+                raise Exception('invalid number of components in origin')
+
         if len(args) == 1:
             s = args[0]
             self.set_scale(s, s, s)
@@ -678,16 +722,22 @@ cdef class Scale(Transform):
             self.set_scale(1.0, 1.0, 1.0)
 
     cdef set_scale(self, double x, double y, double z):
+        cdef float ox, oy, oz
         self._x = x
         self._y = y
         self._z = z
-        self.matrix = Matrix().scale(x, y, z)
+        ox, oy, oz = self._origin
+        cdef Matrix matrix
+        matrix = Matrix().translate(ox, oy, oz)
+        matrix = matrix.multiply(Matrix().scale(x, y, z))
+        matrix = matrix.multiply(Matrix().translate(-ox, -oy, -oz))
+        self.matrix = matrix
 
     property scale:
         '''Property for getting/setting the scale.
 
         .. deprecated:: 1.6.0
-            deprecated in favor of per axis scale properties x,y,z, xyz, etc.
+            Deprecated in favor of per axis scale properties x,y,z, xyz, etc.
         '''
         def __get__(self):
             if self._x == self._y == self._z:
@@ -695,8 +745,8 @@ cdef class Scale(Transform):
                     "y, z, etc properties to get scale factor based on axis.")
                 return self._x
             else:
-                raise Exception("trying to access deprectaed property" +\
-                    " 'scale' on Scale instruction with non unifrom scaling!")
+                raise Exception("trying to access deprecated property" +\
+                    " 'scale' on Scale instruction with non uniform scaling!")
 
         def __set__(self, s):
             Logger.warning("scale property is deprecated, use xyz, x, " +\
@@ -704,7 +754,7 @@ cdef class Scale(Transform):
             self.set_scale(s,s,s)
 
     property x:
-        '''Property for getting/setting the scale on X axis
+        '''Property for getting/setting the scale on the X axis.
 
         .. versionchanged:: 1.6.0
         '''
@@ -714,7 +764,7 @@ cdef class Scale(Transform):
             self.set_scale(x, self._y, self._z)
 
     property y:
-        '''Property for getting/setting the scale on Y axis
+        '''Property for getting/setting the scale on the Y axis.
 
         .. versionchanged:: 1.6.0
         '''
@@ -724,7 +774,7 @@ cdef class Scale(Transform):
             self.set_scale(self._x, y, self._z)
 
     property z:
-        '''Property for getting/setting the scale on Z axis
+        '''Property for getting/setting the scale on Z axis.
 
         .. versionchanged:: 1.6.0
         '''
@@ -734,7 +784,7 @@ cdef class Scale(Transform):
             self.set_scale(self._x, self._y, z)
 
     property xyz:
-        '''3 tuple scale vector in 3D in x, y, and z axis
+        '''3 tuple scale vector in 3D in x, y, and z axis.
 
         .. versionchanged:: 1.6.0
         '''
@@ -742,6 +792,24 @@ cdef class Scale(Transform):
             return self._x, self._y, self._z
         def __set__(self, c):
             self.set_scale(c[0], c[1], c[2])
+
+    property origin:
+        '''Origin of the scale.
+
+        .. versionadded:: 1.9.0
+
+        The format of the origin can be either (x, y) or (x, y, z).
+        '''
+        def __get__(self):
+            return self._origin
+        def __set__(self, origin):
+            if len(origin) == 3:
+                self._origin = tuple(origin)
+            elif len(origin) == 2:
+                self._origin = (origin[0], origin[1], 0.)
+            else:
+                raise Exception('invalid number of components in origin')
+            self.set_scale(self._x, self._y, self._z)
 
 
 cdef class Translate(Transform):
@@ -769,7 +837,7 @@ cdef class Translate(Transform):
         self._z = z
 
     property x:
-        '''Property for getting/setting the translation on X axis
+        '''Property for getting/setting the translation on the X axis.
         '''
         def __get__(self):
             return self._x
@@ -777,7 +845,7 @@ cdef class Translate(Transform):
             self.set_translate(x, self._y, self._z)
 
     property y:
-        '''Property for getting/setting the translation on Y axis
+        '''Property for getting/setting the translation on the Y axis.
         '''
         def __get__(self):
             return self._y
@@ -785,7 +853,7 @@ cdef class Translate(Transform):
             self.set_translate(self._x, y, self._z)
 
     property z:
-        '''Property for getting/setting the translation on Z axis
+        '''Property for getting/setting the translation on the Z axis.
         '''
         def __get__(self):
             return self._z
@@ -793,7 +861,7 @@ cdef class Translate(Transform):
             self.set_translate(self._x, self._y, z)
 
     property xy:
-        '''2 tuple with translation vector in 2D for x and y axis
+        '''2 tuple with translation vector in 2D for x and y axis.
         '''
         def __get__(self):
             return self._x, self._y
@@ -801,7 +869,7 @@ cdef class Translate(Transform):
             self.set_translate(c[0], c[1], self._z)
 
     property xyz:
-        '''3 tuple translation vector in 3D in x, y, and z axis
+        '''3 tuple translation vector in 3D in x, y, and z axis.
         '''
         def __get__(self):
             return self._x, self._y, self._z

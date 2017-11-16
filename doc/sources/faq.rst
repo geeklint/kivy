@@ -49,16 +49,6 @@ using it. In the kivy directory, do::
 
     make force
 
-Pip installation failed
-~~~~~~~~~~~~~~~~~~~~~~~
-
-Installing Kivy using Pip is not currently supported. Because Pip forces the
-usage of setuptools, setuptools hacks build_ext to use pyrex for generating .c,
-meaning there is no clean solution to hack against both weird behaviors to use
-Cython. (Reference: http://mail.scipy.org/pipermail/nipy-devel/2011-March/005709.html)
-
-Solution: use `easy_install`, as our documentation said.
-
 
 Android FAQ
 -----------
@@ -82,7 +72,7 @@ There have been reports of crashes on Adreno 200/205 based devices.
 Apps otherwise run fine but crash when interacted with/through the screen.
 
 These reports also mentioned the issue being resolved when moving to an ICS or
-higher rom.
+higher ROM.
 
 Is it possible to have a kiosk app on android 3.0 ?
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -97,11 +87,11 @@ lines to the xml configuration, and you're done.
 What's the difference between python-for-android from Kivy and SL4A?
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Despite having the same name, Kivy's python-for-android is not related to the 
-python-for-android project from SL4A, Py4A, or android-python27. They are 
-distinctly different projects with different goals. You may be able to use 
-Py4A with Kivy, but no code or effort has been made to do so. The Kivy team 
-feels that our python-for-android is the best solution for us going forward, 
+Despite having the same name, Kivy's python-for-android is not related to the
+python-for-android project from SL4A, Py4A, or android-python27. They are
+distinctly different projects with different goals. You may be able to use
+Py4A with Kivy, but no code or effort has been made to do so. The Kivy team
+feels that our python-for-android is the best solution for us going forward,
 and attempts to integrate with and support Py4A is not a good use of our time.
 
 
@@ -144,7 +134,7 @@ you and implemented the portions of our code, where efficiency really
 is critical, on the C level.
 
 For graphics drawing, we also leverage today's GPUs which are, for
-some tasks such as graphics rasterization, much more efficent than a
+some tasks such as graphics rasterization, much more efficient than a
 CPU. Kivy does as much as is reasonable on the GPU to maximize
 performance. If you use our Canvas API to do the drawing, there is
 even a compiler that we invented which optimizes your drawing code
@@ -161,22 +151,19 @@ But even if this is not sufficient, you still have the option of using
 Cython for your own code to *greatly* speed it up.
 
 Trust us when we say that we have given this very careful thought.
-We have performed many different benchmarks and come up with some 
+We have performed many different benchmarks and come up with some
 clever optimizations to make your application run smoothly.
 
 
 Does Kivy support Python 3.x?
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-No. Not yet. Python 3 is certainly a good thing; However, it broke
-backwards compatibility (for good reasons) which means that some
-considerable portion of available Python projects do not yet work
-with Python 3. This also applies to some of the projects that Kivy
-uses as a dependency, which is why we haven't make the switch yet.
-We would also need to switch our own codebase to Python 3. We haven't
-done that yet because it's not very high on our priority list, but if
-somebody doesn't want to wait for us to do it, please go ahead.
-Please note, though, that Python 2.x is still the de facto standard.
+Yes! As of version 1.8.0 Kivy supports both Python >= 2.7 and Python
+>= 3.3 with the same codebase. Python 3 is also now supported by
+python-for-android.
+
+However, be aware that while Kivy will run in Python 3.3+, our iOS
+build tools still require Python 2.7.
 
 
 How is Kivy related to PyMT?
@@ -188,7 +175,7 @@ still is) a project named PyMT that was led by our core developers.
 We learned a great deal from that project during the time that we
 developed it. In the more than two years of research and development
 we found many interesting ways to improve the design of our
-framework. We have performed numerous benchmarks and as it turns out, 
+framework. We have performed numerous benchmarks and as it turns out,
 to achieve the great speed and flexibility that Kivy has, we had to
 rewrite quite a big portion of the codebase, making this a
 backwards-incompatible but future-proof decision.
@@ -262,4 +249,3 @@ Here's a checklist:
   asking, it might not be well received.
 
 Good luck! :-)
-

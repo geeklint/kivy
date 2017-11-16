@@ -1,6 +1,13 @@
 $(document).ready(function () {
-	var height = $(document).height();
-	$('#content').css('min-height', function(){ return height; });
+	// get real height of all elements inside div#content
+	function getRealHeight() {
+		var realHeight = 0;
+		$("#content").children().each(function(){
+			realHeight = realHeight + $(this).outerHeight(true);
+		});
+		return realHeight;
+	}
+	$('#content').css('min-height', getRealHeight());
 
 	var bodyshortcut = false;
 	function ensure_bodyshortcut() {
@@ -27,7 +34,7 @@ $(document).ready(function () {
 	// insert breaker only for the first data/class/function found.
 	var apibreaker = false;
 	$('div.body dl[class]').each(function (i1, elem) {
-		// theses are first level class: attribute and method are inside class.
+		// these are first level class: attribute and method are inside class.
 		if (!$(elem).hasClass('data') &&
 			!$(elem).hasClass('class') &&
 			!$(elem).hasClass('exception') &&
@@ -60,8 +67,8 @@ $(document).ready(function () {
 
 	if ( apibreaker == true ) {
 		ensure_bodyshortcut();
-		var apilink = $('<div class="right"><a id="api-link" href="#api">Jump to API</a> &dArr;</div>');
-		apilink.appendTo($('div.bodyshortcut'));
+		var apilink = $('<div class="navlink right"><a id="api-link" href="#api">Jump to API</a> &dArr;</div>');
+		apilink.insertBefore($('div.bodyshortcut'));
 	}
 
 	/**
@@ -88,6 +95,7 @@ $(document).ready(function () {
 			$('div.body dl.api-level > dd ul').hide();
 			$(this).removeClass('showed');
 			$(this).html('Show Descriptions &dArr;');
+			$('#content').css('min-height',getRealHeight());
 			$.cookie('kivy.toggledesc', 'true');
 		} else {
 			$('div.body dl.api-level > dd p').show();
@@ -96,6 +104,7 @@ $(document).ready(function () {
 			$('div.body dl.api-level > dd ul').show();
 			$(this).addClass('showed');
 			$(this).html('Hide Descriptions &uArr;');
+			$('#content').css('min-height',getRealHeight());
 			$.cookie('kivy.toggledesc', 'false');
 		}
 	});
@@ -218,6 +227,47 @@ $(document).ready(function () {
 		update_api();
 
 		$('.toc').hide();
+
+
+		// Resolve API version
+		function read_version(item, default_version) {
+			if ( item === undefined )
+				return default_version;
+			var version = item.find('p').text();
+			if ( version == "" )
+				return default_version;
+			item.detach();
+			version = version.replace('New in version ', '');
+			if ( version.substr(-1) == '.' )
+				version = version.substr(0, version.length - 1);
+			return version;
+		}
+
+		//function read_version(item, version) { return version; }
+
+		// get module version
+		var module_version = read_version($('div.body > div.section > div.versionadded'), '1.0.0');
+		var html_version = '<span class="versionadded">Added in <span>' + module_version + '</span></span>';
+		$('div.bodyshortcut').append(html_version);
+
+		// resolve class version, default to module if nothing has been found
+		$('div.section > dl[class]').each(function (i1, el_class) {
+			var rel_class = $(el_class);
+			var class_version = read_version(
+				rel_class.find('> dd > div.versionadded'), module_version);
+
+			var html_version = '<span class="versionadded">Added in <span>' + class_version + '</span></span>';
+			rel_class.find('> dt').append(html_version);
+
+			// resolve method / attr version
+			rel_class.find('> dd > dl[class]').each(function (i2, el_methattr) {
+				var rel_methattr = $(el_methattr);
+				var methattr_version = read_version(
+					rel_methattr.find('> dd > div.versionadded'), class_version);
+				var html_version = '<span class="versionadded">Added in <span>' + methattr_version + '</span></span>';
+				rel_methattr.find('> dt').append(html_version);
+			});
+		});
 
 	} else {
 		var divscroll = $('div.sphinxsidebar');
