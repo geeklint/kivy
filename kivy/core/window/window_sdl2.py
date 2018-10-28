@@ -188,6 +188,9 @@ class WindowSDL(WindowBase):
 
         self.bind(allow_screensaver=self._set_allow_screensaver)
 
+    def get_window_info(self):
+        return self._win.get_window_info()
+
     def _set_minimum_size(self, *args):
         minimum_width = self.minimum_width
         minimum_height = self.minimum_height
@@ -665,6 +668,10 @@ class WindowSDL(WindowBase):
             elif action == 'textinput':
                 text = args[0]
                 self.dispatch('on_textinput', text)
+
+            elif action == 'textedit':
+                text = args[0]
+                self.dispatch('on_textedit', text)
 
             # unhandled event !
             else:

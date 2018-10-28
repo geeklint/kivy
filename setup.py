@@ -17,7 +17,7 @@ from os import walk, environ
 from distutils.version import LooseVersion
 from distutils.sysconfig import get_python_inc
 from collections import OrderedDict
-from time import sleep
+from time import sleep, time
 from subprocess import check_output, CalledProcessError
 from datetime import datetime
 
@@ -39,9 +39,15 @@ if PY3:  # fix error with py3's LooseVersion comparisons
     LooseVersion.__eq__ = ver_equal
 
 
+def get_description():
+    with open(join(dirname(__file__), 'README.md')) as fileh:
+        return fileh.read()
+
+
 def get_version(filename='kivy/version.py'):
     VERSION = kivy.__version__
-    DATE = datetime.utcnow().strftime('%Y%m%d')
+    epoch = int(environ.get('SOURCE_DATE_EPOCH', time()))
+    DATE = datetime.utcfromtimestamp(epoch).strftime('%Y%m%d')
     try:
         GIT_REVISION = check_output(
             ['git', 'rev-parse', 'HEAD']
@@ -69,9 +75,9 @@ def get_version(filename='kivy/version.py'):
     return VERSION
 
 
-MIN_CYTHON_STRING = '0.23'
+MIN_CYTHON_STRING = '0.24'
 MIN_CYTHON_VERSION = LooseVersion(MIN_CYTHON_STRING)
-MAX_CYTHON_STRING = '0.27.3'
+MAX_CYTHON_STRING = '0.28.5'
 MAX_CYTHON_VERSION = LooseVersion(MAX_CYTHON_STRING)
 CYTHON_UNSUPPORTED = (
     # ref https://github.com/cython/cython/issues/1968
@@ -148,9 +154,11 @@ c_options['use_egl'] = False
 c_options['use_opengl_es2'] = None
 c_options['use_opengl_mock'] = environ.get('READTHEDOCS', None) == 'True'
 c_options['use_sdl2'] = None
+c_options['use_pangoft2'] = None
 c_options['use_ios'] = False
 c_options['use_mesagl'] = False
 c_options['use_x11'] = False
+c_options['use_wayland'] = False
 c_options['use_gstreamer'] = None
 c_options['use_avfoundation'] = platform == 'darwin'
 c_options['use_osx_frameworks'] = platform == 'darwin'
@@ -779,6 +787,7 @@ sources = {
     'graphics/cgl_backend/cgl_sdl2.pyx': merge(base_flags, gl_flags_base),
     'graphics/cgl_backend/cgl_debug.pyx': merge(base_flags, gl_flags_base),
     'core/text/text_layout.pyx': base_flags,
+    'core/window/window_info.pyx': base_flags,
     'graphics/tesselator.pyx': merge(base_flags, {
         'include_dirs': ['kivy/lib/libtess2/Include'],
         'c_depends': [
@@ -808,6 +817,17 @@ if c_options['use_sdl2'] and sdl2_flags:
                         'core/clipboard/_clipboard_sdl2.pyx'):
         sources[source_file] = merge(
             base_flags, sdl2_flags, sdl2_depends)
+
+if c_options['use_pangoft2'] in (None, True) and platform not in (
+                                      'android', 'ios', 'windows'):
+    pango_flags = pkgconfig('pangoft2')
+    if pango_flags and 'libraries' in pango_flags:
+        print('Pango: pangoft2 found via pkg-config')
+        c_options['use_pangoft2'] = True
+        pango_depends = {'depends': ['lib/pangoft2.pxi',
+                                     'lib/pangoft2.h']}
+        sources['core/text/_text_pango.pyx'] = merge(
+                base_flags, pango_flags, pango_depends)
 
 if platform in ('darwin', 'ios'):
     # activate ImageIO provider for our core image
@@ -974,11 +994,11 @@ if not build_examples:
         description=(
             'A software library for rapid development of '
             'hardware-accelerated multitouch applications.'),
+        long_description=get_description(),
         ext_modules=ext_modules,
         cmdclass=cmdclass,
         packages=[
             'kivy',
-            'kivy.adapters',
             'kivy.core',
             'kivy.core.audio',
             'kivy.core.camera',
@@ -999,7 +1019,6 @@ if not build_examples:
             'kivy.input.providers',
             'kivy.lang',
             'kivy.lib',
-            'kivy.lib.osc',
             'kivy.lib.gstplayer',
             'kivy.lib.vidcore_lite',
             'kivy.modules',
@@ -1017,10 +1036,13 @@ if not build_examples:
         ],
         package_dir={'kivy': 'kivy'},
         package_data={'kivy': [
+            'setupconfig.py',
             '*.pxd',
             '*.pxi',
             'core/text/*.pxd',
             'core/text/*.pxi',
+            'core/window/*.pxi',
+            'core/window/*.pxd',
             'graphics/*.pxd',
             'graphics/*.pxi',
             'graphics/*.h',
@@ -1073,9 +1095,9 @@ if not build_examples:
             'Operating System :: POSIX :: BSD :: FreeBSD',
             'Operating System :: POSIX :: Linux',
             'Programming Language :: Python :: 2.7',
-            'Programming Language :: Python :: 3.3',
             'Programming Language :: Python :: 3.4',
             'Programming Language :: Python :: 3.5',
+            'Programming Language :: Python :: 3.6',
             'Topic :: Artistic Software',
             'Topic :: Games/Entertainment',
             'Topic :: Multimedia :: Graphics :: 3D Rendering',
@@ -1091,7 +1113,12 @@ if not build_examples:
             'Topic :: Software Development :: User Interfaces'],
         dependency_links=[
             'https://github.com/kivy-garden/garden/archive/master.zip'],
-        install_requires=['Kivy-Garden>=0.1.4', 'docutils', 'pygments'],
+        install_requires=[
+            'Kivy-Garden>=0.1.4', 'docutils', 'pygments'
+        ],
+        extra_requires={
+            'tuio': ['oscpy']
+        },
         setup_requires=[
             'cython>=' + MIN_CYTHON_STRING
         ] if not skip_cython else [])
@@ -1104,4 +1131,5 @@ else:
         url='http://kivy.org',
         license='MIT',
         description=('Kivy examples.'),
+        long_description=get_description(),
         data_files=list(examples.items()))

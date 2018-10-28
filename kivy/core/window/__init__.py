@@ -131,6 +131,9 @@ class Keyboard(EventDispatcher):
         #: VKeyboard widget, if allowed by the configuration
         self.widget = kwargs.get('widget', None)
 
+    def get_window_info():
+        pass
+
     def on_key_down(self, keycode, text, modifiers):
         pass
 
@@ -318,6 +321,13 @@ class WindowBase(EventDispatcher):
             You can listen to this one, and clean whatever you can.
 
             .. versionadded:: 1.9.0
+
+        `on_textedit(self, text)`:
+            Fired when inputting with IME.
+            The string inputting with IME is set as the parameter of
+            this event.
+
+            .. versionadded:: 1.10.1
     '''
 
     __instance = None
@@ -572,6 +582,10 @@ class WindowBase(EventDispatcher):
 
     _keyboard_changed = BooleanProperty(False)
     _kheight = NumericProperty(0)
+    _kanimation = None
+
+    def _free_kanimation(self, *largs):
+        WindowBase._kanimation = None
 
     def _animate_content(self):
         '''Animate content to IME height.
@@ -580,10 +594,13 @@ class WindowBase(EventDispatcher):
         global Animation
         if not Animation:
             from kivy.animation import Animation
-        Animation.cancel_all(self)
-        Animation(
+        if WindowBase._kanimation:
+            WindowBase._kanimation.cancel(self)
+        WindowBase._kanimation = kanim = Animation(
             _kheight=self.keyboard_height + self.keyboard_padding,
-            d=kargs['d'], t=kargs['t']).start(self)
+            d=kargs['d'], t=kargs['t'])
+        kanim.bind(on_complete=self._free_kanimation)
+        kanim.start(self)
 
     def _upd_kbd_height(self, *kargs):
         self._keyboard_changed = not self._keyboard_changed
@@ -614,7 +631,7 @@ class WindowBase(EventDispatcher):
     Will return 0 if not on mobile platform or if IME is not active.
 
     .. note:: This property returns 0 with SDL2 on Android, but setting
-              Window.softinput_mode does works.
+              Window.softinput_mode does work.
 
     .. versionadded:: 1.9.0
 
@@ -850,7 +867,8 @@ class WindowBase(EventDispatcher):
         'on_key_down', 'on_key_up', 'on_textinput', 'on_dropfile',
         'on_request_close', 'on_cursor_enter', 'on_cursor_leave',
         'on_joy_axis', 'on_joy_hat', 'on_joy_ball',
-        'on_joy_button_down', 'on_joy_button_up', 'on_memorywarning')
+        'on_joy_button_down', 'on_joy_button_up', 'on_memorywarning',
+        'on_textedit')
 
     def __new__(cls, **kwargs):
         if cls.__instance is None:
@@ -1230,6 +1248,13 @@ class WindowBase(EventDispatcher):
 
     def add_widget(self, widget, canvas=None):
         '''Add a widget to a window'''
+        if widget.parent:
+            from kivy.uix.widget import WidgetException
+            raise WidgetException(
+                'Cannot add %r to window, it already has a parent %r' %
+                (widget, widget.parent)
+            )
+
         widget.parent = self
         self.children.insert(0, widget)
         canvas = self.canvas.before if canvas == 'before' else \
@@ -1617,7 +1642,7 @@ class WindowBase(EventDispatcher):
         .. versionadded:: 1.9.0'''
         pass
 
-    def on_joy_ball(self, stickid, ballid, value):
+    def on_joy_ball(self, stickid, ballid, xvalue, yvalue):
         '''Event called when a joystick has a ball moved.
 
         .. versionadded:: 1.9.0'''
@@ -1720,6 +1745,15 @@ class WindowBase(EventDispatcher):
         iOS and Android.
 
         .. versionadded:: 1.9.0
+        '''
+        pass
+
+    def on_textedit(self, text):
+        '''Event called when inputting with IME.
+        The string inputting with IME is set as the parameter of
+        this event.
+
+        .. versionadded:: 1.10.1
         '''
         pass
 

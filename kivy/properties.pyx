@@ -360,6 +360,10 @@ cdef class Property:
             default identical values are not dispatched to avoid infinite
             recursion in two-way binds). Be careful, this is for advanced use only.
 
+            `comparator`: callable or None
+                When not None, it's called with two values to be compared.
+                The function returns whether they are considered the same.
+
     .. versionchanged:: 1.4.2
         Parameters errorhandler and errorvalue added
 
@@ -375,7 +379,7 @@ cdef class Property:
         self.errorvalue = None
         self.errorhandler = None
         self.errorvalue_set = 0
-
+        self.comparator = None
 
     def __init__(self, defaultvalue, **kw):
         self.defaultvalue = defaultvalue
@@ -383,6 +387,7 @@ cdef class Property:
         self.force_dispatch = <int>kw.get('force_dispatch', 0)
         self.errorvalue = kw.get('errorvalue', None)
         self.errorhandler = kw.get('errorhandler', None)
+        self.comparator = kw.get('comparator', None)
 
         if 'errorvalue' in kw:
             self.errorvalue_set = 1
@@ -390,9 +395,9 @@ cdef class Property:
         if 'errorhandler' in kw and not callable(self.errorhandler):
             raise ValueError('errorhandler %s not callable' % self.errorhandler)
 
-    property name:
-        def __get__(self):
-            return self._name
+    @property
+    def name(self):
+        return self._name
 
     def __repr__(self):
         return '<{} name={}>'.format(self.__class__.__name__, self._name)
@@ -483,6 +488,9 @@ cdef class Property:
         return self.get(obj)
 
     cdef compare_value(self, a, b):
+        if self.comparator is not None:
+            return self.comparator(a, b)
+
         try:
             return bool(a == b)
         except Exception as e:
@@ -603,9 +611,6 @@ cdef class NumericProperty(Property):
         storage.numeric_fmt = 'px'
         Property.init_storage(self, obj, storage)
 
-    cdef compare_value(self, a, b):
-        return a == b
-
     cdef check(self, EventDispatcher obj, value):
         if Property.check(self, obj, value):
             return True
@@ -665,9 +670,6 @@ cdef class StringProperty(Property):
 
     def __init__(self, defaultvalue='', **kw):
         super(StringProperty, self).__init__(defaultvalue, **kw)
-
-    cdef compare_value(self, a, b):
-        return a == b
 
     cdef check(self, EventDispatcher obj, value):
         if Property.check(self, obj, value):
@@ -1134,9 +1136,6 @@ cdef class BoundedNumericProperty(Property):
         if ps.bnum_use_max == 2:
             return ps.bnum_f_max
 
-    cdef compare_value(self, a, b):
-        return a == b
-
     cdef check(self, EventDispatcher obj, value):
         if Property.check(self, obj, value):
             return True
@@ -1167,28 +1166,27 @@ cdef class BoundedNumericProperty(Property):
                     self.name, _f_max))
         return True
 
-    property bounds:
+    @property
+    def bounds(self):
         '''Return min/max of the value.
 
         .. versionadded:: 1.0.9
         '''
+        if self.use_min == 1:
+            _min = self.min
+        elif self.use_min == 2:
+            _min = self.f_min
+        else:
+            _min = None
 
-        def __get__(self):
-            if self.use_min == 1:
-                _min = self.min
-            elif self.use_min == 2:
-                _min = self.f_min
-            else:
-                _min = None
+        if self.use_max == 1:
+            _max = self.max
+        elif self.use_max == 2:
+            _max = self.f_max
+        else:
+            _max = None
 
-            if self.use_max == 1:
-                _max = self.max
-            elif self.use_max == 2:
-                _max = self.f_max
-            else:
-                _max = None
-
-            return _min, _max
+        return _min, _max
 
 
 cdef class OptionProperty(Property):
@@ -1233,14 +1231,13 @@ cdef class OptionProperty(Property):
                              self.name,
                              value, ps.options))
 
-    property options:
+    @property
+    def options(self):
         '''Return the options available.
 
         .. versionadded:: 1.0.9
         '''
-
-        def __get__(self):
-            return self.options
+        return self.options
 
 class ObservableReferenceList(ObservableList):
     def __setitem__(self, key, value, update_properties=True):
@@ -1472,6 +1469,11 @@ cdef class AliasProperty(Property):
             ps.value = self.get(obj)
             self.dispatch(obj)
 
+    cpdef dispatch(self, EventDispatcher obj):
+        cdef PropertyStorage ps = obj.__storage[self._name]
+        ps.observers.dispatch(obj, self.get(obj), None, None, 0)
+
+
 cdef class VariableListProperty(Property):
     '''A ListProperty that allows you to work with a variable amount of
     list items and to expand them to the desired list size.
@@ -1519,9 +1521,6 @@ cdef class VariableListProperty(Property):
         Property.link(self, obj, name)
         cdef PropertyStorage ps = obj.__storage[self._name]
         ps.value = ObservableList(self, obj, ps.value)
-
-    cdef compare_value(self, a, b):
-        return a == b
 
     cdef check(self, EventDispatcher obj, value):
         if Property.check(self, obj, value):

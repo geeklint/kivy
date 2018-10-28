@@ -3,6 +3,7 @@
 #Permission to use this file is granted under the conditions of the Ignifuga Game Engine License
 #whose terms are available in the LICENSE file or at http://www.ignifuga.org/license
 
+include "../include/config.pxi"
 
 cdef extern from "SDL_joystick.h":
     cdef struct SDL_Joystick
@@ -27,11 +28,12 @@ cdef extern from "SDL.h":
     int SDL_WINDOWPOS_UNDEFINED
 
     ctypedef enum:
+        SDL_PIXELFORMAT_BGRA8888
         SDL_PIXELFORMAT_ARGB8888
         SDL_PIXELFORMAT_RGBA8888
-        SDL_PIXELFORMAT_RGB888
         SDL_PIXELFORMAT_ABGR8888
-        SDL_PIXELFORMAT_BGR888
+        SDL_PIXELFORMAT_RGB24
+        SDL_PIXELFORMAT_BGR24
 
     ctypedef enum SDL_GLattr:
         SDL_GL_RED_SIZE
@@ -90,6 +92,11 @@ cdef extern from "SDL.h":
     ctypedef enum SDL_bool:
         SDL_FALSE = 0
         SDL_TRUE = 1
+
+    cdef struct SDL_version:
+        Uint8 major
+        Uint8 minor
+        Uint8 patch
 
     cdef struct SDL_Rect:
         int x, y
@@ -447,6 +454,7 @@ cdef extern from "SDL.h":
     cdef int SDL_INIT_EVENTS         = 0x00004000
     cdef int SDL_INIT_NOPARACHUTE    = 0x00100000  # Don't catch fatal signals */
 
+    cdef void SDL_GetVersion(SDL_version * ver)
     cdef SDL_Renderer * SDL_CreateRenderer(SDL_Window * window, int index, Uint32 flags)
     cdef void SDL_DestroyRenderer (SDL_Renderer * renderer)
     cdef SDL_Texture * SDL_CreateTexture(SDL_Renderer * renderer, Uint32 format, int access, int w, int h)
@@ -474,10 +482,9 @@ cdef extern from "SDL.h":
     cdef int SDL_SetTextureBlendMode(SDL_Texture * texture, SDL_BlendMode blendMode)
     cdef int SDL_GetTextureBlendMode(SDL_Texture * texture, SDL_BlendMode *blendMode)
     cdef SDL_Surface * SDL_CreateRGBSurfaceFrom(void *pixels, int width, int height, int depth, int pitch, Uint32 Rmask, Uint32 Gmask, Uint32 Bmask, Uint32 Amask)
-    cdef SDL_Surface* SDL_ConvertSurface(SDL_Surface* src, SDL_PixelFormat* fmt, Uint32 flags)
-    cdef SDL_Surface* SDL_ConvertSurfaceFormat(SDL_Surface* src, Uint32
-            pixel_format, Uint32 flags)
+    cdef SDL_Surface* SDL_ConvertSurfaceFormat(SDL_Surface* src, Uint32 pixel_format, Uint32 flags) nogil
     cdef const char* SDL_GetPixelFormatName(Uint32 format)
+    cdef int SDL_GetColorKey(SDL_Surface *surface, Uint32 *key)
     cdef int SDL_Init(Uint32 flags)
     cdef void SDL_Quit()
     cdef int SDL_EnableUNICODE(int enable)
@@ -619,6 +626,11 @@ cdef extern from "SDL.h":
     Uint16 AUDIO_F32LSB #0x8120  /**< 32-bit floating point samples */
     Uint16 AUDIO_F32MSB #0x9120  /**< As above, but big-endian byte order */
     Uint16 AUDIO_F32    #AUDIO_F32LSB
+
+    # Endianness
+    Uint16 SDL_BYTEORDER
+    Uint16 SDL_LIL_ENDIAN
+    Uint16 SDL_BIG_ENDIAN
 
 cdef extern from "SDL_shape.h":
     cdef SDL_Window * SDL_CreateShapedWindow(
@@ -967,3 +979,56 @@ cdef extern from "SDL_mixer.h":
     cdef Mix_Chunk *  Mix_GetChunk(int channel)
     cdef void  Mix_CloseAudio()
     cdef char * Mix_GetError()
+
+include '../core/window/window_attrs.pxi'
+cdef extern from "SDL_syswm.h":
+    cdef enum SDL_SYSWM_TYPE:
+        SDL_SYSWM_UNKNOWN
+        SDL_SYSWM_WINDOWS
+        SDL_SYSWM_X11
+        SDL_SYSWM_DIRECTFB
+        SDL_SYSWM_COCOA
+        SDL_SYSWM_UIKIT
+        SDL_SYSWM_WAYLAND
+        SDL_SYSWM_MIR
+        SDL_SYSWM_WINRT
+        SDL_SYSWM_ANDROID
+        SDL_SYSWM_VIVANTE
+        SDL_SYSWM_OS2
+
+    IF UNAME_SYSNAME == 'Windows':
+        cdef struct _wm_info_win:
+            HWND window
+            HDC hdc
+    ELSE:
+        cdef struct _wm_info_win:
+            int dummy
+
+    IF USE_WAYLAND:
+        cdef struct _wm_info_wl:
+            wl_display *display
+            wl_surface *surface
+            wl_shell_surface *shell_surface
+    ELSE:
+        cdef struct _wm_info_wl:
+            int dummy
+
+    IF USE_X11:
+        cdef struct _wm_info_x11:
+            Display *display
+            Window window
+    ELSE:
+       cdef struct _wm_info_x11:
+           int dummy
+
+    cdef union _wm_info:
+        _wm_info_win win
+        _wm_info_wl wl
+        _wm_info_x11 x11
+
+    cdef struct SDL_SysWMinfo:
+        SDL_version version
+        SDL_SYSWM_TYPE subsystem
+        _wm_info info
+
+    cdef SDL_bool SDL_GetWindowWMInfo(SDL_Window *window, SDL_SysWMinfo *info)

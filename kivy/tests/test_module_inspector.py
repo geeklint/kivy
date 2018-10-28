@@ -1,7 +1,6 @@
 from kivy.tests.common import GraphicUnitTest, UnitTestTouch
 
 from kivy.base import EventLoop
-from kivy.lang import Builder
 from kivy.modules import inspector
 from kivy.factory import Factory
 
@@ -51,15 +50,22 @@ class InspectorTestCase(GraphicUnitTest):
     framecount = 0
 
     def setUp(self):
-        from os import environ
-        environ['KIVY_UNITTEST_NOBUILDERTRACE'] = '1'
-        environ['KIVY_UNITTEST_NOPARSERTRACE'] = '1'
-        super(self.__class__, self).setUp()
+        # kill KV lang logging (too long test)
+        import kivy.lang.builder as builder
+
+        if not hasattr(self, '_trace'):
+            self._trace = builder.trace
+
+        self.builder = builder
+        builder.trace = lambda *_, **__: None
+        super(InspectorTestCase, self).setUp()
 
     def tearDown(self):
-        from os import environ
-        del environ['KIVY_UNITTEST_NOBUILDERTRACE']
-        del environ['KIVY_UNITTEST_NOPARSERTRACE']
+        # add the logging back
+        import kivy.lang.builder as builder
+        builder.Builder.unload_file("InspectorTestCase.KV")
+        builder.trace = self._trace
+        super(InspectorTestCase, self).tearDown()
 
     def clean_garbage(self, *args):
         for child in self._win.children[:]:
@@ -73,7 +79,8 @@ class InspectorTestCase(GraphicUnitTest):
         self.clean_garbage()
 
         # build the widget tree & add Window as the main EL
-        self.root = Builder.load_string(KV)
+        self.root = self.builder.Builder.load_string(
+            KV, filename="InspectorTestCase.KV")
         self.render(self.root)
         self.assertLess(len(self._win.children), 2)
 
@@ -111,7 +118,8 @@ class InspectorTestCase(GraphicUnitTest):
         self.clean_garbage()
 
         # build the widget tree & add Window as the main EL
-        self.root = Builder.load_string(KV)
+        self.root = self.builder.Builder.load_string(
+            KV, filename="InspectorTestCase.KV")
         self.render(self.root)
         self.assertLess(len(self._win.children), 2)
 
@@ -151,7 +159,8 @@ class InspectorTestCase(GraphicUnitTest):
         self.clean_garbage()
 
         # build the widget tree & add Window as the main EL
-        self.root = Builder.load_string(KV)
+        self.root = self.builder.Builder.load_string(
+            KV, filename="InspectorTestCase.KV")
         self.render(self.root)
         self.assertLess(len(self._win.children), 2)
 
@@ -210,7 +219,8 @@ class InspectorTestCase(GraphicUnitTest):
         self.clean_garbage()
 
         # build the widget tree & add Window as the main EL
-        self.root = Builder.load_string(KV)
+        self.root = self.builder.Builder.load_string(
+            KV, filename="InspectorTestCase.KV")
         self.render(self.root)
         self.assertLess(len(self._win.children), 2)
 
@@ -278,7 +288,7 @@ class InspectorTestCase(GraphicUnitTest):
         # close Inspector
         ins.activated = False
         self.render(self.root)
-        self.advance_frames(10)
+        self.advance_frames(5)
 
         # stop Inspector completely
         inspector.stop(self._win, self.root)
@@ -292,7 +302,8 @@ class InspectorTestCase(GraphicUnitTest):
         self.clean_garbage()
 
         # build the widget tree & add Window as the main EL
-        self.root = Builder.load_string(KV)
+        self.root = self.builder.Builder.load_string(
+            KV, filename="InspectorTestCase.KV")
         self.render(self.root)
         self.assertLess(len(self._win.children), 2)
 
@@ -359,7 +370,7 @@ class InspectorTestCase(GraphicUnitTest):
         # close Inspector
         ins.activated = False
         self.render(self.root)
-        self.advance_frames(10)
+        self.advance_frames(5)
 
         # stop Inspector completely
         inspector.stop(self._win, self.root)

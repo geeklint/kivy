@@ -1,12 +1,13 @@
 '''
-This is a extended unittest module for Kivy, to make unittest based on
-graphics with OpenGL context.
+This is a extended unittest module for Kivy, to make unittests based on
+graphics with an OpenGL context.
 
-The idea is to let user render a Widget tree, and after 1, 2 or x frame, a
-screenshot will be done, and be compared to the original one.
-If no screenshot exist for the current test, the very first one will be used.
+The idea is to render a Widget tree, and after 1, 2 or more frames, a
+screenshot will be made and be compared to the original one.
+If no screenshot exists for the current test, the very first one will be used.
 
-The screenshots lives in kivy/tests/results, in PNG format, 320x240.
+The screenshots live in the 'kivy/tests/results' folder and are in PNG format,
+320x240 pixels.
 '''
 
 __all__ = ('GraphicUnitTest', )
@@ -14,15 +15,59 @@ __all__ = ('GraphicUnitTest', )
 import unittest
 import logging
 import os
+import threading
 from kivy.graphics.cgl import cgl_get_backend_name
 from kivy.input.motionevent import MotionEvent
 log = logging.getLogger('unittest')
+
 
 _base = object
 if 'mock' != cgl_get_backend_name():
     _base = unittest.TestCase
 
 make_screenshots = os.environ.get('KIVY_UNITTEST_SCREENSHOTS')
+http_server = None
+http_server_ready = threading.Event()
+
+
+def ensure_web_server():
+    if http_server is not None:
+        return True
+
+    def _start_web_server():
+        global http_server
+        try:
+            from SimpleHTTPServer import SimpleHTTPRequestHandler
+            from SocketServer import TCPServer
+        except ImportError:
+            from http.server import SimpleHTTPRequestHandler
+            from socketserver import TCPServer
+
+        try:
+            handler = SimpleHTTPRequestHandler
+            handler.directory = os.path.join(
+                os.path.dirname(__file__), "..", "..")
+            http_server = TCPServer(
+                ("", 8000), handler, bind_and_activate=False)
+            http_server.daemon_threads = True
+            http_server.allow_reuse_address = True
+            http_server.server_bind()
+            http_server.server_activate()
+            http_server_ready.set()
+            http_server.serve_forever()
+        except:
+            import traceback
+            traceback.print_exc()
+        finally:
+            http_server = None
+            http_server_ready.set()
+
+    th = threading.Thread(target=_start_web_server)
+    th.daemon = True
+    th.start()
+    http_server_ready.wait()
+    if http_server is None:
+        raise Exception("Unable to start webserver")
 
 
 class GraphicUnitTest(_base):
@@ -41,7 +86,7 @@ class GraphicUnitTest(_base):
             self.tearDown(fake=True)
             self.setUp()
 
-    def run(self, name):
+    def run(self, *args, **kwargs):
         '''Extend the run of unittest, to check if results directory have been
         found. If no results directory exists, the test will be ignored.
         '''
@@ -53,7 +98,7 @@ class GraphicUnitTest(_base):
         self.test_counter = 0
         self.results_dir = results_dir
         self.test_failed = False
-        return super(GraphicUnitTest, self).run(name)
+        return super(GraphicUnitTest, self).run(*args, **kwargs)
 
     def setUp(self):
         '''Prepare the graphic test, with:
